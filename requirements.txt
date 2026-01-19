@@ -1,0 +1,13 @@
+langchain
+langchain-community
+langchain-mistralai
+langchain-pinecone
+pinecone-client>=3.0.0
+yfinance
+requests
+python-dotenv
+jupyter
+notebook
+gradio
+plotly
+pandas
