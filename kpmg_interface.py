@@ -1,6 +1,8 @@
 
 import gradio as gr
 import analytics_viz
+from facts_service import facts_service
+from strategic_facts_service import strategic_facts_service
 
 def launch_dashboard(rag_stream_function):
     """
@@ -196,11 +198,12 @@ def launch_dashboard(rag_stream_function):
                         p6 = gr.Plot(label="Slot 6")
                         m6 = gr.Markdown(visible=False, elem_classes=["insight-text"])
 
-                # Logique de mise à jour dynamique
+                # Logique de mise à jour dynamique avec FACTS (centralisé)
                 def update_financial_dashboard(ticker, period, selected_indicators):
-                    # outputs = [p1, m1, p2, m2, ..., p6, m6] => 12 sorties
+                    # Récupération centralisée des données via FACTS Service
+                    facts = facts_service.get_company_facts(ticker, period)
                     
-                    # On initialise tout à Hidden
+                    # outputs = [p1, m1, p2, m2, ..., p6, m6] => 12 sorties
                     outputs = []
                     for _ in range(6):
                         outputs.append(gr.update(visible=False)) # Plot
@@ -212,7 +215,6 @@ def launch_dashboard(rag_stream_function):
                     def add_slot(result_dict):
                         nonlocal current_slot_idx
                         if current_slot_idx < 6:
-                            # Les indices dans outputs sont : 2*i pour Plot, 2*i+1 pour Markdown
                             plot_idx = 2 * current_slot_idx
                             md_idx = plot_idx + 1
                             
@@ -220,7 +222,6 @@ def launch_dashboard(rag_stream_function):
                             insight = result_dict.get("insight", "")
                             reliability = result_dict.get("reliability", "")
                             
-                            # Improved Markdown HTML
                             md_content = f"""
                             <div style='display:flex; align-items:flex-start;'>
                                 <div style='font-size:1.2rem; margin-right:8px;'>💡</div>
@@ -237,39 +238,32 @@ def launch_dashboard(rag_stream_function):
                             
                             current_slot_idx += 1
 
-                    # 1. Cours de Bourse
+                    # Utilisation des fonctions FACTS-based (données pré-chargées)
                     if "Cours de Bourse" in selected_indicators:
-                        res = analytics_viz.plot_stock_history(ticker, period)
+                        res = analytics_viz.plot_stock_history_from_facts(facts, ticker)
                         add_slot(res)
 
-                    # 2. Revenus vs Net
                     if "Revenus vs Net" in selected_indicators:
-                        res = analytics_viz.plot_financial_kpis(ticker)
+                        res = analytics_viz.plot_financial_kpis_from_facts(facts)
                         add_slot(res)
 
-                    # 3. FCF & Marges
                     if "Free Cash Flow" in selected_indicators or "Marges" in selected_indicators:
-                        # Retourne une liste de dicts
-                        results = analytics_viz.plot_advanced_financials(ticker)
-                        # results[0] = FCF, results[1] = Marges
+                        results = analytics_viz.plot_advanced_financials_from_facts(facts)
                         if "Free Cash Flow" in selected_indicators:
                             add_slot(results[0])
                         if "Marges" in selected_indicators:
                             add_slot(results[1])
 
-                    # 4. Solvabilité
                     if "Solvabilité (Dette)" in selected_indicators:
-                        res = analytics_viz.plot_solvency_ratios(ticker)
+                        res = analytics_viz.plot_solvency_from_facts(facts)
                         add_slot(res)
                     
-                    # 5. ROE / ROA
                     if "ROE / ROA" in selected_indicators:
-                        res = analytics_viz.plot_returns(ticker)
+                        res = analytics_viz.plot_returns_from_facts(facts)
                         add_slot(res)
                         
-                    # 6. Bilan
                     if "Structure Bilan" in selected_indicators:
-                        res = analytics_viz.plot_balance_sheet_structure(ticker)
+                        res = analytics_viz.plot_balance_sheet_from_facts(facts)
                         add_slot(res)
 
                     return outputs
@@ -283,13 +277,18 @@ def launch_dashboard(rag_stream_function):
             # ─── ONGLET 3 : STRATÉGIE ───
             with gr.Tab("🧠 Strategic Analysis (AI)"):
                 with gr.Row():
-                     gr.Markdown("### ⚡ AI-Powered Strategy Matrices")
+                     gr.Markdown("### ⚡ AI-Powered Strategy Matrices (FACTS Centralisé)")
+                     gr.Markdown("<i style='color:#90a4ae;'>Un seul appel API génère les 3 matrices, enrichies par les données financières.</i>")
 
                 # Zone de Configuration
                 with gr.Accordion("Matrix Configuration", open=True):
                     with gr.Row():
-                        company_input = gr.Textbox(label="Entreprise cible", value="Tesla", scale=3)
+                        company_input = gr.Textbox(label="Entreprise cible", value="Tesla", scale=2)
+                        ticker_strat_input = gr.Textbox(label="Ticker (optionnel, pour enrichissement financier)", value="TSLA", scale=1)
                         btn_strat = gr.Button("🚀 Generate Matrices", variant="primary", scale=1)
+                
+                # Indicateurs de chargement
+                strat_status = gr.Markdown(value="", visible=False)
                 
                 with gr.Row():
                     with gr.Column(elem_classes=["card-panel"]):
@@ -300,10 +299,26 @@ def launch_dashboard(rag_stream_function):
                         plot_bcg = gr.Plot(label="Matrice BCG")
                     with gr.Column(elem_classes=["card-panel"]):
                         plot_pestel = gr.Plot(label="Radar PESTEL")
+                
+                # Fonction centralisée pour générer les 3 matrices en un seul appel
+                def update_strategic_matrices(company, ticker):
+                    """Génère les 3 matrices stratégiques via le service FACTS centralisé."""
+                    # Un seul appel LLM via strategic_facts_service
+                    ticker_clean = ticker.strip() if ticker else None
+                    strategic_data = strategic_facts_service.get_strategic_analysis(company, ticker_clean)
                     
-                btn_strat.click(analytics_viz.generate_swot_matrix, company_input, plot_swot)
-                btn_strat.click(analytics_viz.generate_bcg_matrix, company_input, plot_bcg)
-                btn_strat.click(analytics_viz.generate_pestel_radar, company_input, plot_pestel)
+                    # Génération des visualisations à partir des données pré-générées
+                    swot_fig = analytics_viz.generate_swot_from_strategic_facts(strategic_data, company)
+                    bcg_fig = analytics_viz.generate_bcg_from_strategic_facts(strategic_data, company)
+                    pestel_fig = analytics_viz.generate_pestel_from_strategic_facts(strategic_data, company)
+                    
+                    return swot_fig, bcg_fig, pestel_fig
+                
+                btn_strat.click(
+                    update_strategic_matrices, 
+                    inputs=[company_input, ticker_strat_input], 
+                    outputs=[plot_swot, plot_bcg, plot_pestel]
+                )
 
     # Lancement avec les paramètres mis à jour
-    demo.launch(share=True, theme=theme, css=custom_css)
+    demo.launch(share=False, theme=theme, css=custom_css)
