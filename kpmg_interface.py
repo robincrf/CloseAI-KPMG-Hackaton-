@@ -121,11 +121,30 @@ def launch_dashboard(rag_stream_function):
                             sam_pct_input = gr.Slider(0, 100, label="% SAM (Addressable)", value=20)
                             som_share_input = gr.Slider(0, 100, label="% SOM (Target Share)", value=5)
                             
-                            btn_calc = gr.Button("🔄 Recalculer", variant="primary")
+                            # MANUAL INDICATORS OVERRIDE
+                            with gr.Accordion("⚙️ Ajuster les Indicateurs (Manuel)", open=False):
+                                gr.Markdown("Modifiez les hypothèses de base (Volumes, Prix, etc.)")
+                                manual_indicators_input = gr.Dataframe(
+                                    headers=["Clé", "Valeur", "Unité"],
+                                    datatype=["str", "number", "str"],
+                                    column_count=(3, "fixed"),
+                                    interactive=True,
+                                    label="Indicateurs Clés",
+                                    value=[["target_volume", 0, "clients"], ["unit_price", 0, "EUR"]]
+                                )
+                                btn_calc = gr.Button("🔄 Recalculer avec mes ajustements", variant="primary")
                             
                             # FOOTBALL FIELD
                             gr.Markdown("#### 📐 Triangulation")
                             plot_football = gr.Plot(label="Football Field")
+
+                # SECTION 0: SCOPE DEFINITION (NEW)
+                scope_display = gr.HTML()
+
+                # SECTION 1: HERO METRICS (Now below Scope)
+                with gr.Row():
+                    # ... (Existing Hero) ...
+                    pass
 
                 # SECTION 2: HYPOTHESES & MISSING FACTS
                 gr.Markdown("---")
@@ -150,10 +169,34 @@ def launch_dashboard(rag_stream_function):
 
 
                 # LOGIQUE MARKET SIZING (UPDATED FOR GRANULARITY)
-                def refresh_market_sizing(scenario, tam_val, sam_pct, som_pct, ticker_ref, industry, region, horizon, currency):
+                def refresh_market_sizing(scenario, tam_val, sam_pct, som_pct, manual_data, ticker_ref, industry, region, horizon, currency):
                     # Construct Scope String dynamically
                     scope_str = f"{industry} en {region} (Horizon {horizon}) - {currency}"
                     facts_manager.facts_manager.set_market_scope(scope_str)
+
+                    # 0. INGEST MANUAL OVERRIDES
+                    if manual_data is not None:
+                         # Type Guard for binding mismatches
+                         if isinstance(manual_data, str):
+                             print(f"⚠️ ARGUMENT MISMATCH: manual_data received string '{manual_data}' instead of DataFrame. Ignoring.")
+                         elif not manual_data.empty:
+                             print("📝 Ingesting Manual Indicators...")
+                             for _, row in manual_data.iterrows():
+                                  key = row[0]
+                                  try:
+                                      val = float(row[1])
+                                      unit = row[2]
+                                      if val > 0: # Only ingest meaningful overrides
+                                          facts_manager.facts_manager.add_or_update_fact({
+                                              "key": key,
+                                              "value": val,
+                                              "unit": unit,
+                                              "source": "Utilisateur (Manuel)",
+                                              "source_type": "Primaire",
+                                              "confidence": "high"
+                                          })
+                                  except:
+                                      pass
 
                     # 1. Update Temporary Facts from Inputs (Macro)
                     try:
@@ -175,7 +218,31 @@ def launch_dashboard(rag_stream_function):
                     # Determine Best Method
                     best_comp = engine.determine_best_method()
                     
-                    # 3. Generate HTML for 4 Components
+                    # 3. Generate HTML for 4 Components (UPDATED SCOPE DISPLAY)
+                    
+                    # 3.1 Scope Display Generation
+                    scope_def = facts_manager.facts_manager.get_fact_value("market_scope_definition", None)
+                    scope_html_content = ""
+                    if scope_def:
+                        scope_html_content = f"""
+                        <div style="background: rgba(33, 150, 243, 0.1); border-left: 5px solid #2196F3; padding: 15px; margin-bottom: 20px; border-radius: 4px;">
+                            <h4 style="margin-top:0; color: #BBDEFB;">🎯 Scope Défini (Périmètre Explicite)</h4>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 0.9em; color: #E0E0E0;">
+                                <div><b>Type :</b> {scope_def.get('market_type', 'N/A')}</div>
+                                <div><b>Modèle Rev :</b> {scope_def.get('revenue_model', 'N/A')}</div>
+                                <div><b>Unité Eco :</b> {scope_def.get('economic_unit', 'N/A')}</div>
+                                <div><b>Cible :</b> {scope_def.get('target_clients', 'N/A')}</div>
+                            </div>
+                            <div style="margin-top: 10px; font-size: 0.9em;">
+                                <span style="color: #66BB6A;">✅ Inclus : {', '.join(scope_def.get('products_included', []))}</span><br>
+                                <span style="color: #EF5350;">❌ Exclu : {', '.join(scope_def.get('products_excluded', []))}</span>
+                            </div>
+                        </div>
+                        """
+                    else:
+                        scope_html_content = "<div style='color:gray; font-style:italic;'>Scope non défini. Lancez l'estimation.</div>"
+
+
                     
                     # HERO INSIGHT (CB INSIGHTS STYLE)
                     hero_val = "N/A"
@@ -188,7 +255,7 @@ def launch_dashboard(rag_stream_function):
                     if best_comp.confidence == "low": conf_color = "#F44336"
                     
                     decision_html = f'''
-                    <div style="background: linear_gradient(135deg, #1A237E 0%, #0D47A1 100%); padding: 30px; border-radius: 12px; margin-bottom: 30px; box-shadow: 0 10px 20px rgba(0,0,0,0.3); text-align: center; border: 1px solid rgba(255,255,255,0.1);">
+                    <div style="background: linear-gradient(135deg, #1A237E 0%, #0D47A1 100%); padding: 30px; border-radius: 12px; margin-bottom: 30px; box-shadow: 0 10px 20px rgba(0,0,0,0.3); text-align: center; border: 1px solid rgba(255,255,255,0.1);">
                         
                         <div style="font-size: 0.9em; text-transform: uppercase; letter-spacing: 2px; color: #BBDEFB; margin-bottom: 10px;">
                             ESTIMATION DE MARCHÉ RETENUE
@@ -221,7 +288,66 @@ def launch_dashboard(rag_stream_function):
                     
                     html_content = decision_html + audit_html
                     
-                    return None, None, html_content, sources_df
+                    # 4. Generate Visualizations (Responsive to Best Method)
+                    
+                    # 4.1 Waterfall (TAM -> SAM -> SOM)
+                    # Use the Best TAM as base
+                    base_tam = best_comp.estimated_value if best_comp.estimated_value else 0
+                    
+                    # Retrieve SAM/SOM ratios (from facts)
+                    # Note: Facts stores decimals (0.20) or integers? 
+                    # Engine conversion to float usually happens in logic.
+                    # Let's trust FactsManager to return what was stored.
+                    # Previous step stored 0.20 for 20%.
+                    
+                    f_sam = facts_manager.facts_manager.get_fact_value("sam_percent", 0.2)
+                    f_som = facts_manager.facts_manager.get_fact_value("som_share", 0.05)
+                    
+                    # Ensure they are ratios <= 1. If > 1, assume percentage and divide.
+                    if f_sam > 1: f_sam /= 100.0
+                    if f_som > 1: f_som /= 100.0
+                    
+                    calc_sam = base_tam * f_sam
+                    calc_som = calc_sam * f_som # SOM is usually share of SAM or share of TAM? 
+                    # Definition in prompt: "SOM (Serviceable Obtainable Market) : Part de marché capturable à court terme (en % du SAM)."
+                    # So SOM = SAM * SOM%
+                    
+                    fig_waterfall = analytics_viz.plot_market_sizing_waterfall(base_tam, calc_sam, calc_som, currency)
+                    
+                    # 4.2 Football Field (Method Comparison)
+                    # Convert estimations to ranges
+                    ranges = []
+                    for comp in estimations:
+                        if comp.estimated_value is not None and comp.estimated_value > 0:
+                            # Create an artificial range +/- 20% for 'estimation' type, or 0 for precise
+                            # Improve: Use confidence to dictate range?
+                            width = 0.20 # Default +/- 20%
+                            if comp.confidence == "high": width = 0.10
+                            if comp.confidence == "low": width = 0.40
+                            
+                            val = comp.estimated_value
+                            r_min = val * (1 - width)
+                            r_max = val * (1 + width)
+                            
+                            ranges.append({
+                                "label": comp.name.replace("Estimation ", ""),
+                                "min": r_min,
+                                "max": r_max,
+                                "val": val
+                            })
+                    
+                    fig_football = analytics_viz.plot_valuation_football_field(ranges)
+
+                    return fig_waterfall, fig_football, html_content, sources_df, scope_html_content
+                 
+                 # Bindings Update needed to ensure outputs match
+                 # refresh_market_sizing outputs 4 items: [plot_waterfall, plot_football, facts_display, sources_table]
+                 # Wait, 'decision_html' goes to 'facts_display' (HTML component).
+                 
+                 # Verify function signature in binding:
+                 # outputs=[plot_waterfall, plot_football, facts_display, sources_table]
+                 # My return: fig_waterfall, fig_football, html_content, sources_df
+                 # Matches perfectly.
                 # Function to save scope
                 def save_scope_action(new_scope):
                     print(f"DEBUG: Saving scope: {new_scope}")
@@ -285,6 +411,8 @@ def launch_dashboard(rag_stream_function):
                     print(f"   ✅ LLM returned {len(new_facts)} facts:")
                     for f in new_facts:
                          print(f"      -> {f['key']}: {f['value']} ({f.get('source', 'No Source')})")
+                         # CRITICAL FIX: Inject into Manager
+                         mgr.add_or_update_fact(f)
                     
                     # 4. Refresh Inputs from Manager
                     tam_val = mgr.get_fact_value("tam_global_market", 0)
@@ -307,8 +435,21 @@ def launch_dashboard(rag_stream_function):
                     print("\n📊 [DEBUG] FINAL FACTS TABLE STATE:")
                     print(mgr.get_all_facts_as_dataframe().to_string())
                     print("--------------------------------------------------\n")
+                    
+                    # Prepare Manual Indicators DataFrame from Generated Facts
+                    inds = []
+                    keys_of_interest = ["target_volume", "unit_price", "top_players_cumulative_revenue", "market_multiplier_factor", "production_volume", "average_unit_market_value"]
+                    
+                    for k in keys_of_interest:
+                        f = mgr.get_facts(k) # Use get_fact to get unit/value
+                        if f:
+                            inds.append([k, f.get("value"), f.get("unit", "N/A")])
+                    
+                    # If empty, add defaults
+                    if not inds:
+                        inds = [["target_volume", 0, "clients"], ["unit_price", 0, "EUR"]]
                         
-                    return tam_val, sam_val, som_val
+                    return tam_val, sam_val, som_val, inds
 
                 def generate_strategy_matrices(ticker_ref, industry_context):
                     print(f"DEBUG: Generating Strategy Matrices for {ticker_ref} or {industry_context}...")
@@ -359,13 +500,20 @@ def launch_dashboard(rag_stream_function):
                 btn_estimate.click(
                     run_full_market_estimation,
                     inputs=[context_ticker, input_industry, input_region, input_horizon, input_currency],
-                    outputs=[tam_input, sam_pct_input, som_share_input]
+                    outputs=[tam_input, sam_pct_input, som_share_input, manual_indicators_input]
                 ).success(
                     refresh_market_sizing,
-                    inputs=[scenario_radio, tam_input, sam_pct_input, som_share_input, context_ticker, input_industry, input_region, input_horizon, input_currency],
-                    outputs=[plot_waterfall, plot_football, facts_display, sources_table]
+                    inputs=[scenario_radio, tam_input, sam_pct_input, som_share_input, manual_indicators_input, context_ticker, input_industry, input_region, input_horizon, input_currency],
+                    outputs=[plot_waterfall, plot_football, facts_display, sources_table, scope_display] # ADDED scope_display
                 )
 
+                # Recalculate Button (Manual)
+                btn_calc.click(
+                    refresh_market_sizing,
+                    inputs=[scenario_radio, tam_input, sam_pct_input, som_share_input, manual_indicators_input, context_ticker, input_industry, input_region, input_horizon, input_currency],
+                    outputs=[plot_waterfall, plot_football, facts_display, sources_table, scope_display]
+                )
+                
                 # 2. Strategy Generation (Right Button)
                 btn_gen_strat.click(
                     generate_strategy_matrices,
@@ -436,16 +584,12 @@ def launch_dashboard(rag_stream_function):
                      outputs=[input_industry, input_region, input_horizon, input_currency, context_ticker, tam_input, sam_pct_input, som_share_input]
                 ).then(
                     refresh_market_sizing,
-                    inputs=[scenario_radio, tam_input, sam_pct_input, som_share_input, context_ticker, input_industry, input_region, input_horizon, input_currency],
-                    outputs=[plot_waterfall, plot_football, facts_display, sources_table]
+                    inputs=[scenario_radio, tam_input, sam_pct_input, som_share_input, manual_indicators_input, context_ticker, input_industry, input_region, input_horizon, input_currency],
+                    outputs=[plot_waterfall, plot_football, facts_display, sources_table, scope_display] # ADDED scope_display
                 )
                 
-                
-                btn_calc.click(
-                    refresh_market_sizing,
-                    inputs=[scenario_radio, tam_input, sam_pct_input, som_share_input, context_ticker, input_industry, input_region, input_horizon, input_currency],
-                    outputs=[plot_waterfall, plot_football, facts_display, sources_table]
-                )
+                # Removed redundant btn_calc.click() binding that had wrong arguments
+
                 
                 # Save scope on click or blur (Disabled or Removed)
                 # btn_save_scope.click(...)

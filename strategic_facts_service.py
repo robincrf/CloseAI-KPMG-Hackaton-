@@ -455,16 +455,21 @@ Réponds UNIQUEMENT avec du JSON valide, aucun texte autour.
         Tu es un analyste senior en Market Sizing chez KPMG.
         Ton objectif : Construire une estimation ROBUSTE et GRANULAIRE pour le marché : "{scope}".
         
-        ⛔️ INTERDIT : Ne me donne pas un seul chiffre magique sorti d'un chapeau.
-        ✅ OBLIGATOIRE : Tu dois déconstruire le marché selon 3 perspectives.
+        PHASE 1 : DÉFINITION EXPLICITE DU SCOPE (CRITIQUE)
+        Avant tout calcul, tu dois lever les ambiguïtés :
+        - Quel est le type de marché ? (Production, Distribution ou Valeur Finale Payée ?)
+        - Qu'est-ce qui est INCLUS et EXCLU ? (ex: Logiciel seul vs Services intégrés)
+        - Quelle est l'Unité Économique ? (ex: €/Utilisateur/An vs €/Entreprise/An)
 
+        PHASE 2 : ESTIMATION MULTI-MÉTHODES
+        
         1️⃣ PERSPECTIVE SECONDAIRE (Si dispo)
         - Cherche un rapport sectoriel (Gartner, IDC, Statista, Xerfi) PRÉCIS.
         - Si le scope diffère (ex: Monde vs France), note-le.
 
         2️⃣ PERSPECTIVE BOTTOM-UP (Volume x Prix)
         - Estime le NOMBRE de clients cibles (ex: Nb PME en France).
-        - Estime le PRIX moyen annuel (ARPU/ACV).
+        - Estime le PRIX moyen annuel (ARPU/ACV) correspondant EXACTEMENT à l'unité économique définie.
         - Fournis les briques séparément.
 
         3️⃣ PERSPECTIVE SUPPLY-LED (Offre)
@@ -477,6 +482,14 @@ Réponds UNIQUEMENT avec du JSON valide, aucun texte autour.
 
         FORMAT DE SORTIE JSON STRICT :
         {{
+            "scope_definition": {{
+                "market_type": "Valeur Consommée Finale (End-User Spending)",
+                "products_included": ["Logiciels SaaS", "Maintenance"],
+                "products_excluded": ["Matériel", "Services de conseil sur mesure"],
+                "target_clients": "PME et ETI (> 50 salariés)",
+                "revenue_model": "Abonnement Récurrent (ARR)",
+                "economic_unit": "€ / Entreprise / An"
+            }},
             "secondary_tam": {{ "value": 5000000000, "unit": "EUR", "source": "Statista 2023", "year": "2023", "scope_match": "Global (vs Local demandé)", "confidence": 0.5 }},
             "bottom_up": {{
                  "target_volume": {{ "value": 140000, "unit": "entreprises", "source": "INSEE", "desc": "Nb PME Industrielles" }},
@@ -510,6 +523,20 @@ Réponds UNIQUEMENT avec du JSON valide, aucun texte autour.
             facts = []
             ts = int(datetime.now().timestamp())
             
+            # 0. SCOPE DEFINITION FACT (NEW)
+            if "scope_definition" in data:
+                sd = data["scope_definition"]
+                facts.append({
+                    "id": f"scope_def_{ts}",
+                    "category": "scope_definition",
+                    "key": "market_scope_definition",
+                    "value": sd, # Store the whole dict
+                    "unit": "N/A",
+                    "source": "Moteur Sémantique",
+                    "confidence": "high",
+                    "notes": "Définition explicite du périmètre avant calcul."
+                })
+
             # 1. SECONDARY TAM FACT
             if "secondary_tam" in data and data["secondary_tam"].get("value"):
                 st = data["secondary_tam"]

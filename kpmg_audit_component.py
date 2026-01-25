@@ -214,7 +214,18 @@ def generate_audit_component_html(engine: MarketEstimationEngine, best_comp: Est
         for other in valid_others:
             diff_pct = ((other.estimated_value - best_comp.estimated_value) / best_comp.estimated_value) * 100
             diff_str = f"+{diff_pct:.1f}%" if diff_pct > 0 else f"{diff_pct:.1f}%"
-            comparison_html += f"<li>Vs <b>{other.name}</b> ({other.estimated_value:,.0f} €) : Écart de <b>{diff_str}</b>.</li>"
+            
+            # Semantic Interpretation
+            interpretation = ""
+            abs_diff = abs(diff_pct)
+            if abs_diff < 20: 
+                interpretation = "<span style='color:#4CAF50'>✅ Cohérent (Convergence forte)</span>"
+            elif abs_diff < 100:
+                interpretation = "<span style='color:#FF9800'>⚠️ Divergence significative (Méthodes différentes)</span>"
+            else:
+                interpretation = "<span style='color:#F44336'>🚨 Écart d'ordre de grandeur (Probable différence de Périmètre/Scope)</span>"
+
+            comparison_html += f"<li>Vs <b>{other.name}</b> ({other.estimated_value:,.0f} €) : <b>{diff_str}</b> — {interpretation}</li>"
     else:
         comparison_html = "<li>Pas d'autres estimations complètes pour comparaison (Triangulation impossible).</li>"
 
