@@ -246,7 +246,7 @@ def plot_advanced_financials(ticker_symbol: str) -> list:
             texttemplate='%{text:.2s}'
         ))
         fig_fcf.update_layout(
-            title=dict(text="<b>FREE CASH FLOW</b>", font=dict(color=color_primary, size=18)),
+            title=dict(text="<b>FREE CASH FLOW</b>", font=dict(color="#FFFFFF", size=18)),
             paper_bgcolor="rgba(0,0,0,0)",
             plot_bgcolor="rgba(0,0,0,0)",
             height=380,
@@ -277,7 +277,7 @@ def plot_advanced_financials(ticker_symbol: str) -> list:
             margin_analysis = generate_financial_insight("Marge Nette", net_margin)
             
         fig_margins.update_layout(
-            title=dict(text="<b>EVOLUTION DES MARGES NETTES (%)</b>", font=dict(color=color_primary, size=18)),
+            title=dict(text="<b>EVOLUTION DES MARGES NETTES (%)</b>", font=dict(color="#FFFFFF", size=18)),
             paper_bgcolor="rgba(0,0,0,0)",
             plot_bgcolor="rgba(0,0,0,0)",
             height=380,
@@ -1373,7 +1373,7 @@ def generate_pestel_from_strategic_facts(strategic_data: dict, company: str) -> 
         theta=categories_closed,
         fill='toself',
         fillcolor='rgba(0, 51, 141, 0.4)',
-        line=dict(color='#00338D', width=3),
+        line=dict(color='#CCCCFF', width=3),
         name=company
     ))
 
@@ -1394,7 +1394,7 @@ def generate_pestel_from_strategic_facts(strategic_data: dict, company: str) -> 
                 gridcolor="rgba(255, 255, 255, 0.1)"
             ),
             angularaxis=dict(
-                tickfont=dict(color="#00338D", size=11, weight="bold"),
+                tickfont=dict(color="#FFFFFF", size=11, weight="bold"),
                 linecolor="gray",
                 gridcolor="rgba(255, 255, 255, 0.1)"
             ),
@@ -1412,7 +1412,7 @@ def generate_pestel_from_strategic_facts(strategic_data: dict, company: str) -> 
                 xref="paper", yref="paper",
                 x=0.5, y=-0.15,
                 showarrow=False,
-                font=dict(size=10, color="#90a4ae"),
+                font=dict(size=10, color="#FFFFFF"),
                 xanchor="center"
             )
         ]
@@ -1430,3 +1430,139 @@ def generate_pestel_from_strategic_facts(strategic_data: dict, company: str) -> 
     )
 
     return fig
+
+# ═══════════════════════════════════════════════════════════════
+# SECTION 5 : VISUALISATIONS MARKET SIZING (NOUVEAU)
+# ═══════════════════════════════════════════════════════════════
+
+def plot_market_sizing_waterfall(tam: float, sam: float, som: float, currency: str = "€") -> go.Figure:
+    """
+    Génère un Waterfall Chart pour TAM/SAM/SOM.
+    Gère les valeurs None/0 proprement.
+    """
+    try:
+        if tam is None: tam = 0
+        if sam is None: sam = 0
+        if som is None: som = 0
+
+        # Logique Waterfall: TAM -> SAM (restriction) -> SOM (capture)
+        # Mais pour un TAM/SAM/SOM classique, ce sont plutôt des barres imbriquées ou comparées.
+        # Le format "Pont" (Waterfall) est souvent utilisé : 
+        # TAM (Total) -> -Segments non adressés = SAM -> -Part non capturée = SOM
+        
+        # Calcul des deltas pour le waterfall
+        delta_tam_sam = sam - tam # Négatif
+        delta_sam_som = som - sam # Négatif
+        
+        fig = go.Figure(go.Waterfall(
+            name = "Market Sizing",
+            orientation = "v",
+            measure = ["absolute", "relative", "relative", "total"],
+            x = ["TAM (Total)", "Non Addressable", "Uncaptured", "SOM (Obtainable)"],
+            textposition = "outside",
+            text = [f"{tam:,.0f}{currency}", f"{delta_tam_sam:,.0f}{currency}", f"{delta_sam_som:,.0f}{currency}", f"{som:,.0f}{currency}"],
+            y = [tam, delta_tam_sam, delta_sam_som, 0], # Le dernier est calculé auto par "total" mais on peut forcer 0
+            connector = {"line":{"color":"#cfd8dc"}},
+            decreasing = {"marker":{"color":"#ef5350"}}, # Rouge clair pour les réductions
+            increasing = {"marker":{"color":"#00C853"}},
+            totals = {"marker":{"color":"#00338D"}} # Bleu KPMG pour le final SOM
+        ))
+        
+        # Alternative : Barres simples côte à côte si Waterfall trop complexe visuellement pour TAM/SAM/SOM
+        # Souvent TAM SAM SOM est représenté par des cercles concentriques ou des barres dégressives à part.
+        # Faisons simple : 3 Barres dégressives colorées.
+        
+        fig_bar = go.Figure()
+        fig_bar.add_trace(go.Bar(
+            x=["TAM", "SAM", "SOM"],
+            y=[tam, sam, som],
+            text=[f"{tam:,.0f} {currency}", f"{sam:,.0f} {currency}", f"{som:,.0f} {currency}"],
+            textposition='auto',
+            marker_color=['#00338D', '#005EB8', '#0091DA'] # Dégradé bleu KPMG
+        ))
+        
+        fig_bar.update_layout(
+            title=dict(text="<b>ESTIMATION TAM / SAM / SOM</b>", font=dict(color="#FFFFFF", size=18)),
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            height=400,
+            yaxis=dict(gridcolor='rgba(255,255,255,0.1)', tickfont=dict(color='#cfd8dc')),
+            xaxis=dict(tickfont=dict(color='#cfd8dc', size=14, weight="bold")),
+            margin=dict(l=20, r=20, t=60, b=20)
+        )
+        
+        return fig_bar
+        
+    except Exception as e:
+        return go.Figure().add_annotation(text=f"Erreur Viz: {e}", showarrow=False, font=dict(color="white"))
+
+def plot_valuation_football_field(ranges: list) -> go.Figure:
+    """
+    Génère un 'Football Field' chart pour comparer les méthodes de valorisation/taille.
+    
+    Args:
+        ranges: Liste de dicts [{'label': 'Top-Down', 'min': 100, 'max': 200, 'val': 150}, ...]
+    """
+    try:
+        fig = go.Figure()
+        
+        if not ranges:
+            return fig.add_annotation(text="Pas de données de comparaison", showarrow=False, font=dict(color="white"))
+
+        # Inverser pour afficher du haut vers le bas
+        ranges = ranges[::-1]
+        
+        labels = [r['label'] for r in ranges]
+        mins = [r['min'] for r in ranges]
+        maxs = [r['max'] for r in ranges]
+        vals = [r.get('val', (r['min']+r['max'])/2) for r in ranges]
+        
+        # Barre invisible pour décaler le début
+        fig.add_trace(go.Bar(
+            y=labels,
+            x=mins,
+            orientation='h',
+            marker=dict(color='rgba(0,0,0,0)'),
+            hoverinfo='none',
+            showlegend=False
+        ))
+        
+        # Barre visible (Max - Min)
+        rect_widths = [ma - mi for ma, mi in zip(maxs, mins)]
+        
+        fig.add_trace(go.Bar(
+            y=labels,
+            x=rect_widths,
+            orientation='h',
+            marker=dict(color='#0091DA', opacity=0.6, line=dict(color='#00338D', width=1)),
+            base=mins, # Commence à min
+            name='Plage de Valeur',
+            hoverinfo='x+y'
+        ))
+        
+        # Point central (Valeur de base)
+        fig.add_trace(go.Scatter(
+            y=labels,
+            x=vals,
+            mode='markers',
+            marker=dict(color='#FFFFFF', size=10, symbol='diamond'),
+            name='Cas de Base'
+        ))
+
+        fig.update_layout(
+            title=dict(text="<b>TRIANGULATION DES MÉTHODES</b> (Football Field)", font=dict(color="#FFFFFF", size=18)),
+            barmode='stack', # Pour que la barre commence au bon endroit
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            height=300,
+            xaxis=dict(gridcolor='rgba(255,255,255,0.1)', tickfont=dict(color='#cfd8dc')),
+            yaxis=dict(tickfont=dict(color='#cfd8dc', size=12)),
+            margin=dict(l=20, r=20, t=60, b=20),
+            showlegend=True,
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(color="white"))
+        )
+        
+        return fig
+        
+    except Exception as e:
+        return go.Figure().add_annotation(text=f"Erreur Football Field: {e}", showarrow=False, font=dict(color="white"))

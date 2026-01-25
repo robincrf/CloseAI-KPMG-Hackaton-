@@ -1,324 +1,547 @@
 
 import gradio as gr
 import analytics_viz
-from facts_service import facts_service
+import facts_manager
+import pandas as pd
 from strategic_facts_service import strategic_facts_service
+
+# Helper to format numbers
+def format_currency(value):
+    if value is None: return "N/A"
+    if value >= 1e9: return f"€{value/1e9:.1f}B"
+    if value >= 1e6: return f"€{value/1e6:.1f}M"
+    if value >= 1e3: return f"€{value/1e3:.1f}K"
+    return f"€{value:.0f}"
 
 def launch_dashboard(rag_stream_function):
     """
-    Lance le tableau de bord complet KPMG (Chat + Finance + Stratégie).
-    
-    Args:
-        rag_stream_function: La fonction génératrice du notebook (stream_kpmg_response)
+    Lance le tableau de bord KPMG Market Sizer.
     """
     
-    # Thème personnalisé KPMG Pro
+    # Thème KPMG
     theme = gr.themes.Soft(
         primary_hue="blue",
         secondary_hue="cyan",
         neutral_hue="slate",
-        font=[gr.themes.GoogleFont("Inter"), "ui-sans-serif", "system-ui", "sans-serif"],
-        font_mono=[gr.themes.GoogleFont("Source Code Pro"), "ui-monospace", "Consolas", "monospace"],
     ).set(
-        body_background_fill="#121212", # Darker background
+        body_background_fill="#121212", 
         body_text_color="#E0E0E0",
-        block_background_fill="#1E1E1E", # Card background
+        block_background_fill="#1E1E1E",
         block_border_width="1px",
         block_border_color="rgba(255, 255, 255, 0.1)",
-        block_label_text_color="#0091DA", # Secondary Blue
+        block_label_text_color="#0091DA",
         input_background_fill="#262626",
-        button_primary_background_fill="#00338D", # KPMG Primary Blue
+        button_primary_background_fill="#00338D",
         button_primary_text_color="white",
         button_secondary_background_fill="#262626",
         button_secondary_text_color="#0091DA",
         button_secondary_border_color="#0091DA",
-        border_color_primary="#00338D",
         slider_color="#0091DA"
     )
 
     custom_css = """
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
-    
     body, gradio-app { font-family: 'Inter', sans-serif !important; }
-    
-    /* Header Styling */
     .header-container {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 1.5rem;
-        background: linear-gradient(90deg, #00338D 0%, #001E55 100%);
-        border-radius: 12px;
-        margin-bottom: 2rem;
-        box-shadow: 0 4px 20px rgba(0, 51, 141, 0.3);
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 1.5rem; background: linear-gradient(90deg, #00338D 0%, #001E55 100%);
+        border-radius: 12px; margin-bottom: 2rem; box-shadow: 0 4px 20px rgba(0, 51, 141, 0.3);
     }
-    
-    .header-title {
-        color: white;
-        font-size: 1.8rem;
-        font-weight: 700;
-        letter-spacing: -0.5px;
-    }
-    
-    .header-subtitle {
-        color: #0091DA;
-        font-size: 1rem;
-        font-weight: 500;
-        margin-top: 0.2rem;
-    }
-
-    /* Cards */
+    .header-title { color: white; font-size: 1.8rem; font-weight: 700; }
+    .header-subtitle { color: #0091DA; font-size: 1rem; font-weight: 500; }
     .card-panel {
-        background: #1E1E1E !important;
-        border: 1px solid rgba(255, 255, 255, 0.08) !important;
-        border-radius: 12px !important;
-        padding: 1rem !important;
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        background: #1E1E1E !important; border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        border-radius: 12px !important; padding: 1rem !important;
     }
-    .card-panel:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
-        border-color: rgba(0, 145, 218, 0.3) !important;
+    .fact-card {
+        background: rgba(0, 145, 218, 0.1); border-left: 3px solid #0091DA;
+        padding: 10px; margin-bottom: 10px; border-radius: 4px;
     }
-
-    /* Tabs Styling */
-    .tabs { margin-top: 1rem; }
-    button.selected {
-        background-color: rgba(0, 51, 141, 0.1) !important;
-        border-bottom: 2px solid #00338D !important;
-        color: #0091DA !important;
+    .missing-fact {
+        background: rgba(255, 61, 0, 0.1); border-left: 3px solid #FF3D00;
+        padding: 10px; margin-bottom: 10px; border-radius: 4px; border: 1px dashed #FF3D00;
     }
-    
-    /* Plotly Container */
-    .plotly-container {
-        border-radius: 8px;
-        overflow: hidden;
-    }
-    
-    /* Markdown Insights */
-    .insight-text {
-        font-size: 0.9rem;
-        padding: 0.8rem;
-        background: rgba(0, 145, 218, 0.1);
-        border-left: 3px solid #0091DA;
-        border-radius: 4px;
-        margin-top: 0.5rem;
-        color: #e0e0e0;
-    }
-    .reliability-badge {
-        font-size: 0.75rem;
-        color: #9e9e9e;
-        margin-top: 0.2rem;
-        display: block;
-        font-style: italic;
-    }
-
-    /* Footer Cleanup */
-    footer { display: none !important; }
     """
 
-    with gr.Blocks(title="KPMG Analytics Dashboard") as demo:
+    with gr.Blocks(title="KPMG Market Sizer") as demo:
         
-        # Professional Header
+        # HEADER
         gr.HTML("""
         <div class="header-container">
             <div>
-                <div class="header-title">KPMG <span style="font-weight:400; opacity:0.8;">Global Strategy Group</span></div>
-                <div class="header-subtitle">Strategic Intelligence & Financial Analytics Platform</div>
+                <div class="header-title">KPMG <span style="font-weight:400; opacity:0.8;">Market Sizer</span></div>
+                <div class="header-subtitle">Intelligence Stratégique & Estimation de Marché</div>
             </div>
-            <div style="text-align:right; color: #0091DA; font-family: monospace; font-size: 0.9rem;">
-                v2.4.0-kpmg-internal
-            </div>
+            <div style="text-align:right; color: #0091DA; font-family: monospace;">v3.0-FACTS-FIRST</div>
         </div>
         """)
         
         with gr.Tabs():
-            # ─── ONGLET 1 : CHAT RAG ───
-            with gr.Tab("💬 Strategic Assistant"):
-                with gr.Row():
-                    with gr.Column(scale=1, min_width=300):
-                        gr.Markdown("### 🤖 Assistant IA\nPosez vos questions sur les documents ingérés (News, Rapports financiers, etc.)")
-                        # Image removed to prevent 403 errors (Wikimedia block)
-                        # The HTML Header already provides sufficient branding.
-                    
-                    with gr.Column(scale=3):
-                         gr.ChatInterface(
-                            fn=rag_stream_function,
-                            description="Assistant de Veille Stratégique alimenté par Mistral-Small.",
-                            examples=["Actualités Apple", "Analyse SWOT Tesla", "Tendances IA 2024"]
-                        )
             
-            # ─── ONGLET 2 : FINANCE ───
-            with gr.Tab("📈 Financial Dashboard"):
-                with gr.Row():
-                    gr.Markdown("### 📊 Market & Performance Analysis")
+            # ─── ONGLET 1 : ESTIMATION DU MARCHÉ ───
+            with gr.Tab("🎯 Estimation du Marché"):
                 
-                # Zone de Configuration
-                with gr.Accordion("Configuration du Dashboard", open=True):
-                    with gr.Row():
-                        ticker_input = gr.Textbox(label="Ticker (ex: AAPL, MSFT, TEF.PA)", value="AAPL")
-                        period_input = gr.Dropdown(label="Période", choices=["1mo", "3mo", "6mo", "1y", "2y", "5y"], value="1y")
+                # SECTION 0: CONTEXT SELECTION
+                # SECTION 0: SCOPE SELECTOR (CB INSIGHTS STYLE)
+                gr.Markdown("### 🎯 Définition du Périmètre")
+                with gr.Row():
+                    input_industry = gr.Textbox(label="Industrie / Secteur", placeholder="ex: Logiciels ERP", value="Logiciels de Gestion PME", scale=2)
+                    input_region = gr.Dropdown(choices=["Global", "Europe", "France", "USA", "Asie"], label="Zone", value="France", allow_custom_value=True, scale=1)
+                    input_horizon = gr.Dropdown(choices=["2024", "2025", "2030"], label="Horizon", value="2025", allow_custom_value=True, scale=1)
+                    input_currency = gr.Dropdown(choices=["EUR", "USD", "GBP"], label="Devise", value="EUR", scale=0)
+                
+                with gr.Row():
+                    context_ticker = gr.Textbox(label="Ticker de Référence (Contexte)", value="", placeholder="Optionnel (ex: AAPL)", scale=2)
+                    btn_estimate = gr.Button("🚀 Lancer l'Estimation", variant="primary", scale=1)
+                    btn_gen_strat = gr.Button("✨ Analyser la Stratégie", variant="secondary", scale=1)
+                    # Hidden or removed save button as scope is auto-constructed? Keeping it hidden for legacy compat
+                    btn_save_scope = gr.Button("💾", scale=0, min_width=50, visible=False)
+
+                # SECTION 0.5: STRATEGIC CONTEXT (Visualizations)
+                gr.Markdown("### 🧭 Contexte Stratégique (SWOT / BCG / PESTEL)")
+                with gr.Row():
+                    with gr.Column():
+                        plot_swot = gr.Plot(label="Matrice SWOT")
+                    with gr.Column():
+                        plot_bcg = gr.Plot(label="Matrice BCG")
+                    with gr.Column():
+                         plot_pestel = gr.Plot(label="Radar PESTEL")
+
+                # SECTION 1: EXEC SUMMARY & SCENARIOS
+                with gr.Row():
+                    with gr.Column(scale=2):
+                        gr.Markdown("### 📊 Synthèse de l'Estimation (TAM / SAM / SOM)")
+                        plot_waterfall = gr.Plot(label="Market Waterfall")
                     
-                    indicators = gr.CheckboxGroup(
-                        label="Indicateurs à afficher",
-                        choices=[
-                            "Cours de Bourse", 
-                            "Revenus vs Net", 
-                            "Free Cash Flow", 
-                            "Marges", 
-                            "Solvabilité (Dette)", 
-                            "ROE / ROA", 
-                            "Structure Bilan"
-                        ],
-                        value=["Cours de Bourse", "Revenus vs Net", "Marges"] # Défaut
+                    with gr.Column(scale=1):
+                        gr.Markdown("### 🎛️ Paramètres & Scénarios")
+                        with gr.Group():
+                            scenario_radio = gr.Radio(["Pessimiste", "Base", "Optimiste"], value="Base", label="Scénario Actif")
+                            tam_input = gr.Number(label="TAM Global Market (€)", value=0)
+                            sam_pct_input = gr.Slider(0, 100, label="% SAM (Addressable)", value=20)
+                            som_share_input = gr.Slider(0, 100, label="% SOM (Target Share)", value=5)
+                            
+                            btn_calc = gr.Button("🔄 Recalculer", variant="primary")
+                            
+                            # FOOTBALL FIELD
+                            gr.Markdown("#### 📐 Triangulation")
+                            plot_football = gr.Plot(label="Football Field")
+
+                # SECTION 2: HYPOTHESES & MISSING FACTS
+                gr.Markdown("---")
+                with gr.Row():
+                    with gr.Column(scale=1):
+                         gr.Markdown("### 💡 Hypothèses & Sources (Résumé)")
+                         facts_display = gr.HTML()
+                    
+                    # You can add other summary widgets here if needed
+                
+                # SECTION 3: CENTRALIZED AUDIT TABLE
+                gr.Markdown("---")
+                gr.Markdown("### 📑 Registre Centralisé des Faits & Sources (Audit)")
+                with gr.Row():
+                    sources_table = gr.Dataframe(
+                        headers=["Variable / Fact", "Valeur", "Source", "Type Source", "Méthode", "Confiance", "Utilisé dans"],
+                        interactive=False,
+                        wrap=True,
+                        column_widths=["15%", "10%", "15%", "15%", "15%", "10%", "20%"] 
                     )
-                    btn_viz_fin = gr.Button("📊 Mettre à jour le Dashboard", variant="primary")
 
-                # Grille d'affichage dynamique (6 slots)
-                # Structure : Plot + Markdown d'insight en dessous
-                with gr.Row():
-                    with gr.Column(elem_classes=["card-panel"]):
-                        p1 = gr.Plot(label="Slot 1")
-                        m1 = gr.Markdown(visible=False, elem_classes=["insight-text"])
-                    with gr.Column(elem_classes=["card-panel"]):
-                        p2 = gr.Plot(label="Slot 2")
-                        m2 = gr.Markdown(visible=False, elem_classes=["insight-text"])
-                with gr.Row():
-                    with gr.Column(elem_classes=["card-panel"]):
-                        p3 = gr.Plot(label="Slot 3")
-                        m3 = gr.Markdown(visible=False, elem_classes=["insight-text"])
-                    with gr.Column(elem_classes=["card-panel"]):
-                        p4 = gr.Plot(label="Slot 4")
-                        m4 = gr.Markdown(visible=False, elem_classes=["insight-text"])
-                with gr.Row():
-                    with gr.Column(elem_classes=["card-panel"]):
-                        p5 = gr.Plot(label="Slot 5")
-                        m5 = gr.Markdown(visible=False, elem_classes=["insight-text"])
-                    with gr.Column(elem_classes=["card-panel"]):
-                        p6 = gr.Plot(label="Slot 6")
-                        m6 = gr.Markdown(visible=False, elem_classes=["insight-text"])
 
-                # Logique de mise à jour dynamique avec FACTS (centralisé)
-                def update_financial_dashboard(ticker, period, selected_indicators):
-                    # Récupération centralisée des données via FACTS Service
-                    facts = facts_service.get_company_facts(ticker, period)
+
+                # LOGIQUE MARKET SIZING (UPDATED FOR GRANULARITY)
+                def refresh_market_sizing(scenario, tam_val, sam_pct, som_pct, ticker_ref, industry, region, horizon, currency):
+                    # Construct Scope String dynamically
+                    scope_str = f"{industry} en {region} (Horizon {horizon}) - {currency}"
+                    facts_manager.facts_manager.set_market_scope(scope_str)
+
+                    # 1. Update Temporary Facts from Inputs (Macro)
+                    try:
+                        facts_manager.facts_manager.add_or_update_fact({"key": "tam_global_market", "value": tam_val, "category": "market_estimation"})
+                        facts_manager.facts_manager.add_or_update_fact({"key": "sam_percent", "value": sam_pct, "category": "market_estimation"})
+                        facts_manager.facts_manager.add_or_update_fact({"key": "som_share", "value": som_pct, "category": "market_estimation"})
+                    except:
+                        pass # Handle potential reload issues gracefully
+
+                    # 2. Run Engine (Now supports Granular Strategies)
+                    from market_estimation_engine import MarketEstimationEngine
+                    engine = MarketEstimationEngine(facts_manager.facts_manager)
                     
-                    # outputs = [p1, m1, p2, m2, ..., p6, m6] => 12 sorties
-                    outputs = []
-                    for _ in range(6):
-                        outputs.append(gr.update(visible=False)) # Plot
-                        outputs.append(gr.update(visible=False)) # Markdown
+                    estimations = engine.get_all_estimations()
                     
-                    current_slot_idx = 0
+                    # Consolidated table
+                    sources_df = engine.get_consolidated_facts_table()
+
+                    # Determine Best Method
+                    best_comp = engine.determine_best_method()
                     
-                    # Helper pour ajouter un slot
-                    def add_slot(result_dict):
-                        nonlocal current_slot_idx
-                        if current_slot_idx < 6:
-                            plot_idx = 2 * current_slot_idx
-                            md_idx = plot_idx + 1
-                            
-                            fig = result_dict.get("fig")
-                            insight = result_dict.get("insight", "")
-                            reliability = result_dict.get("reliability", "")
-                            
-                            md_content = f"""
-                            <div style='display:flex; align-items:flex-start;'>
-                                <div style='font-size:1.2rem; margin-right:8px;'>💡</div>
-                                <div>
-                                    <div style='font-weight:600; color:#e0e0e0;'>Insight Automatique</div>
-                                    <div style='color:#b0bec5;'>{insight}</div>
-                                    <div class='reliability-badge'>{reliability}</div>
-                                </div>
-                            </div>
-                            """ if insight else ""
-                            
-                            outputs[plot_idx] = gr.update(value=fig, visible=True)
-                            outputs[md_idx] = gr.update(value=md_content, visible=True)
-                            
-                            current_slot_idx += 1
-
-                    # Utilisation des fonctions FACTS-based (données pré-chargées)
-                    if "Cours de Bourse" in selected_indicators:
-                        res = analytics_viz.plot_stock_history_from_facts(facts, ticker)
-                        add_slot(res)
-
-                    if "Revenus vs Net" in selected_indicators:
-                        res = analytics_viz.plot_financial_kpis_from_facts(facts)
-                        add_slot(res)
-
-                    if "Free Cash Flow" in selected_indicators or "Marges" in selected_indicators:
-                        results = analytics_viz.plot_advanced_financials_from_facts(facts)
-                        if "Free Cash Flow" in selected_indicators:
-                            add_slot(results[0])
-                        if "Marges" in selected_indicators:
-                            add_slot(results[1])
-
-                    if "Solvabilité (Dette)" in selected_indicators:
-                        res = analytics_viz.plot_solvency_from_facts(facts)
-                        add_slot(res)
+                    # 3. Generate HTML for 4 Components
                     
-                    if "ROE / ROA" in selected_indicators:
-                        res = analytics_viz.plot_returns_from_facts(facts)
-                        add_slot(res)
+                    # HERO INSIGHT (CB INSIGHTS STYLE)
+                    hero_val = "N/A"
+                    if best_comp.estimated_value:
+                        hero_val = format_currency(best_comp.estimated_value)
                         
-                    if "Structure Bilan" in selected_indicators:
-                        res = analytics_viz.plot_balance_sheet_from_facts(facts)
-                        add_slot(res)
+                    # Confidence Color
+                    conf_color = "#4CAF50" # Green for High
+                    if best_comp.confidence == "medium": conf_color = "#FF9800"
+                    if best_comp.confidence == "low": conf_color = "#F44336"
+                    
+                    decision_html = f'''
+                    <div style="background: linear_gradient(135deg, #1A237E 0%, #0D47A1 100%); padding: 30px; border-radius: 12px; margin-bottom: 30px; box-shadow: 0 10px 20px rgba(0,0,0,0.3); text-align: center; border: 1px solid rgba(255,255,255,0.1);">
+                        
+                        <div style="font-size: 0.9em; text-transform: uppercase; letter-spacing: 2px; color: #BBDEFB; margin-bottom: 10px;">
+                            ESTIMATION DE MARCHÉ RETENUE
+                        </div>
+                        
+                        <div style="font-size: 4.5em; font-weight: 800; color: white; line-height: 1.1; text-shadow: 0 0 20px rgba(33, 150, 243, 0.5);">
+                            {hero_val}
+                        </div>
+                        
+                        <div style="display: flex; justify-content: center; align-items: center; gap: 15px; margin-top: 20px;">
+                            <div style="background: {conf_color}; color: white; padding: 5px 15px; border-radius: 20px; font-weight: bold; font-size: 0.9em; box-shadow: 0 4px 6px rgba(0,0,0,0.2);">
+                                CONFIANCE {best_comp.confidence.upper()}
+                            </div>
+                            <div style="color: #E3F2FD; font-size: 1.1em;">
+                                Basé sur : <b>{best_comp.name}</b>
+                            </div>
+                        </div>
 
-                    return outputs
+                        <div style="margin-top: 25px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px; color: #90CAF9; font-style: italic; max-width: 600px; margin-left: auto; margin-right: auto;">
+                            "{best_comp.role}"
+                        </div>
+                    </div>
+                    
+                    <h3 style="margin-bottom: 20px; color: #E0E0E0; border-left: 4px solid #BBDEFB; padding-left: 10px;">🔍 Analyse Méthodologique Détaillée (Audit Log)</h3>
+                    '''
+                    
+                    # CALL NEW AUDIT COMPONENT
+                    from kpmg_audit_component import generate_audit_component_html
+                    audit_html = generate_audit_component_html(engine, best_comp, facts_manager.facts_manager)
+                    
+                    html_content = decision_html + audit_html
+                    
+                    return None, None, html_content, sources_df
+                # Function to save scope
+                def save_scope_action(new_scope):
+                    print(f"DEBUG: Saving scope: {new_scope}")
+                    try:
+                        facts_manager.facts_manager.set_market_scope(new_scope)
+                        return f"Portée mise à jour : {new_scope}"
+                    except Exception as e:
+                        print("❌ ERROR in save_scope_action:")
+                        traceback.print_exc()
+                        return "Erreur Save"
 
-                btn_viz_fin.click(
-                    update_financial_dashboard, 
-                    inputs=[ticker_input, period_input, indicators], 
-                    outputs=[p1, m1, p2, m2, p3, m3, p4, m4, p5, m5, p6, m6]
+                # LOAD STRATEGIC CONTEXT + FINANCIALS
+                # SPLIT LOGIC: 1. Financials, 2. Strategy
+
+                # Helper to reload manager
+                def _reload_manager():
+                    import importlib
+                    import facts_manager
+                    importlib.reload(facts_manager)
+                    return facts_manager.facts_manager
+
+                # SPLIT LOGIC: 1. Estimation (Market), 2. Strategy (Matrices)
+
+                # Helper to reload manager
+                def _reload_manager():
+                    import importlib
+                    import facts_manager
+                    importlib.reload(facts_manager)
+                    return facts_manager.facts_manager
+
+                def run_full_market_estimation(ticker_ref, industry, region, horizon, currency):
+                    # CONSOLE DEBUG
+                    print(f"\n🚀 [DEBUG] STARTING MARKET ESTIMATION")
+                    print(f"   - Inputs: Ind='{industry}', Reg='{region}', Hor='{horizon}', Cur='{currency}'")
+                    
+                    mgr = _reload_manager()
+                    
+                    # 1. Define Scope
+                    scope_str = f"{industry} en {region} (Horizon {horizon}) - {currency}"
+                    print(f"   - Generated Scope: '{scope_str}'")
+                    
+                    # UI DEBUG TOAST
+                    gr.Info(f"🛠️ DEBUG: Nouveau Scope généré : {scope_str}")
+                    
+                    mgr.set_market_scope(scope_str)
+                    
+                    # 2. Ingest Financials ONLY IF Ticker is present
+                    if ticker_ref:
+                        print(f"   - Ingesting Financials for {ticker_ref}")
+                        try:
+                            mgr.ingest_financial_facts(ticker_ref)
+                        except Exception as e:
+                            print(f"   ⚠️ Financial Ingestion Error: {e}")
+                    
+                    # 3. Generate Market Sizing Facts (Mistral)
+                    from strategic_facts_service import strategic_facts_service
+                    print(f"   - Calling LLM for Market Sizing Facts...")
+                    
+                    # Force FRESH generation by calling service
+                    new_facts = strategic_facts_service.generate_market_sizing_facts(scope_str)
+                    print(f"   ✅ LLM returned {len(new_facts)} facts:")
+                    for f in new_facts:
+                         print(f"      -> {f['key']}: {f['value']} ({f.get('source', 'No Source')})")
+                    
+                    # 4. Refresh Inputs from Manager
+                    tam_val = mgr.get_fact_value("tam_global_market", 0)
+                    sam_val = mgr.get_fact_value("sam_percent", 20)
+                    som_val = mgr.get_fact_value("som_share", 5)
+                    
+                    print(f"   - Updated Manager Values: TAM={tam_val}, SAM={sam_val}, SOM={som_val}")
+                    
+                    # Scale fix
+                    if sam_val < 1 and sam_val > 0: sam_val = sam_val * 100
+                    if som_val < 1 and som_val > 0: som_val = som_val * 100
+                    
+                    # Competitors Search
+                    try:
+                        competitors = strategic_facts_service.find_competitors(scope_str)
+                    except:
+                        pass
+                        
+                    # PRINT FULL FACTS TABLE (DEBUG REQUEST)
+                    print("\n📊 [DEBUG] FINAL FACTS TABLE STATE:")
+                    print(mgr.get_all_facts_as_dataframe().to_string())
+                    print("--------------------------------------------------\n")
+                        
+                    return tam_val, sam_val, som_val
+
+                def generate_strategy_matrices(ticker_ref, industry_context):
+                    print(f"DEBUG: Generating Strategy Matrices for {ticker_ref} or {industry_context}...")
+                    try:
+                        mgr = _reload_manager()
+                        target_name = ticker_ref if ticker_ref else industry_context
+                        if not target_name: target_name = "Acteur Générique"
+                        tik = ticker_ref if ticker_ref else None
+                        
+                        print(f"🔄 Syncing strategy for {target_name}...")
+                        mgr.ingest_strategic_facts(target_name, tik)
+                        
+                        strat_facts = mgr.get_facts(category="strategic_analysis")
+                        strategic_data = {"ticker": tik, "generated_at": "N/A"}
+                        swot_found = False
+                        
+                        for f in strat_facts:
+                            if "swot" in f["key"]: 
+                                strategic_data["swot"] = f["value"]
+                                swot_found = True
+                            if "bcg" in f["key"]: strategic_data["bcg"] = f["value"]
+                            if "pestel" in f["key"]: strategic_data["pestel"] = f["value"]
+                            if "source" in f: strategic_data["generated_at"] = f.get("source")
+
+                        if not swot_found:
+                             import plotly.graph_objects as go
+                             empty = go.Figure().add_annotation(text="Données non trouvées.", showarrow=False)
+                             return empty, empty, empty
+                        
+                        fig_swot = analytics_viz.generate_swot_from_strategic_facts(strategic_data, target_name)
+                        fig_pestel = analytics_viz.generate_pestel_from_strategic_facts(strategic_data, target_name)
+                        fig_bcg = analytics_viz.generate_bcg_from_strategic_facts(strategic_data, target_name)
+                        
+                        return fig_swot, fig_bcg, fig_pestel
+
+                    except Exception as e:
+                        print(f"❌ Error Strategy: {e}")
+                        import traceback
+                        traceback.print_exc()
+                        import plotly.graph_objects as go
+                        err = go.Figure().add_annotation(text=f"Error: {e}", showarrow=False, font=dict(color="red"))
+                        return err, err, err
+
+                # Bindings
+                
+                # 1. Market Estimation (Left Button)
+                # Triggers LLM generation of facts -> Updates Inputs -> Triggers Calculation
+                btn_estimate.click(
+                    run_full_market_estimation,
+                    inputs=[context_ticker, input_industry, input_region, input_horizon, input_currency],
+                    outputs=[tam_input, sam_pct_input, som_share_input]
+                ).success(
+                    refresh_market_sizing,
+                    inputs=[scenario_radio, tam_input, sam_pct_input, som_share_input, context_ticker, input_industry, input_region, input_horizon, input_currency],
+                    outputs=[plot_waterfall, plot_football, facts_display, sources_table]
                 )
 
-            # ─── ONGLET 3 : STRATÉGIE ───
-            with gr.Tab("🧠 Strategic Analysis (AI)"):
-                with gr.Row():
-                     gr.Markdown("### ⚡ AI-Powered Strategy Matrices (FACTS Centralisé)")
-                     gr.Markdown("<i style='color:#90a4ae;'>Un seul appel API génère les 3 matrices, enrichies par les données financières.</i>")
-
-                # Zone de Configuration
-                with gr.Accordion("Matrix Configuration", open=True):
-                    with gr.Row():
-                        company_input = gr.Textbox(label="Entreprise cible", value="Tesla", scale=2)
-                        ticker_strat_input = gr.Textbox(label="Ticker (optionnel, pour enrichissement financier)", value="TSLA", scale=1)
-                        btn_strat = gr.Button("🚀 Generate Matrices", variant="primary", scale=1)
-                
-                # Indicateurs de chargement
-                strat_status = gr.Markdown(value="", visible=False)
-                
-                with gr.Row():
-                    with gr.Column(elem_classes=["card-panel"]):
-                        plot_swot = gr.Plot(label="Matrice SWOT")
-                
-                with gr.Row():
-                    with gr.Column(elem_classes=["card-panel"]):
-                        plot_bcg = gr.Plot(label="Matrice BCG")
-                    with gr.Column(elem_classes=["card-panel"]):
-                        plot_pestel = gr.Plot(label="Radar PESTEL")
-                
-                # Fonction centralisée pour générer les 3 matrices en un seul appel
-                def update_strategic_matrices(company, ticker):
-                    """Génère les 3 matrices stratégiques via le service FACTS centralisé."""
-                    # Un seul appel LLM via strategic_facts_service
-                    ticker_clean = ticker.strip() if ticker else None
-                    strategic_data = strategic_facts_service.get_strategic_analysis(company, ticker_clean)
-                    
-                    # Génération des visualisations à partir des données pré-générées
-                    swot_fig = analytics_viz.generate_swot_from_strategic_facts(strategic_data, company)
-                    bcg_fig = analytics_viz.generate_bcg_from_strategic_facts(strategic_data, company)
-                    pestel_fig = analytics_viz.generate_pestel_from_strategic_facts(strategic_data, company)
-                    
-                    return swot_fig, bcg_fig, pestel_fig
-                
-                btn_strat.click(
-                    update_strategic_matrices, 
-                    inputs=[company_input, ticker_strat_input], 
+                # 2. Strategy Generation (Right Button)
+                btn_gen_strat.click(
+                    generate_strategy_matrices,
+                    inputs=[context_ticker, input_industry],
                     outputs=[plot_swot, plot_bcg, plot_pestel]
                 )
+                def load_initial_state():
+                    print("🚀 NOUVELLE SESSION : Nettoyage et Génération des Facts...")
+                    
+                    # 1. Clear previous session facts
+                    facts_manager.facts_manager.clear_all_facts()
+                    
+                    # 2. Define defaults
+                    def_ind = "Logiciels de Gestion (ERP/CRM) pour PME"
+                    def_reg = "France"
+                    def_hor = "2025"
+                    def_cur = "EUR"
+                    default_ticker = "" # Optional by default
+                    
+                    default_scope = f"{def_ind} en {def_reg} - {def_hor}"
+                    
+                    # 3. Store Context Fact
+                    facts_manager.facts_manager.set_market_scope(default_scope)
+                    
+                    # 4. Generate Market Sizing Facts (Mistral)
+                    from strategic_facts_service import strategic_facts_service
+                    
+                    gen_facts = strategic_facts_service.generate_market_sizing_facts(default_scope)
+                    for f in gen_facts:
+                        facts_manager.facts_manager.add_or_update_fact(f)
 
-    # Lancement avec les paramètres mis à jour
-    demo.launch(share=False, theme=theme, css=custom_css)
+                    # 5. Massive Data Harvest (Competitors)
+                    print("🚜 [HARVEST] Démarrage de la moisson de données concurrentielles...")
+                    try:
+                        competitors = strategic_facts_service.find_competitors(default_scope)
+                        # Add main ticker if specified
+                        if default_ticker:
+                            competitors.append(default_ticker)
+                        
+                        competitors = list(set(competitors)) # Dedup
+                        
+                        count = 0
+                        for comp_ticker in competitors:
+                            print(f"   ⬇️ Ingestion financière : {comp_ticker}")
+                            facts_manager.facts_manager.ingest_financial_facts(comp_ticker)
+                            count += 1
+                        
+                        print(f"✅ [HARVEST] {count} concurrents scannés et ingérés.")
+                    except Exception as e:
+                        print(f"⚠️ [HARVEST] Erreur partielle : {e}")
+
+                    # 6. Fetch values for UI
+                    tam = facts_manager.facts_manager.get_fact_value("tam_global_market", 0)
+                    sam = facts_manager.facts_manager.get_fact_value("sam_percent", 0.20)
+                    som = facts_manager.facts_manager.get_fact_value("som_share", 0.05)
+                    
+                    if sam <= 1: sam = sam * 100
+                    if som <= 1: som = som * 100
+                    
+                    print(f"✅ Session initialisée avec succès. Total Facts: {len(facts_manager.facts_manager.facts)}")
+                    # Return separated defaults for inputs
+                    return def_ind, def_reg, def_hor, def_cur, default_ticker, tam, sam, som
+
+                # Setup initial load
+                demo.load(
+                     load_initial_state, 
+                     inputs=None,
+                     outputs=[input_industry, input_region, input_horizon, input_currency, context_ticker, tam_input, sam_pct_input, som_share_input]
+                ).then(
+                    refresh_market_sizing,
+                    inputs=[scenario_radio, tam_input, sam_pct_input, som_share_input, context_ticker, input_industry, input_region, input_horizon, input_currency],
+                    outputs=[plot_waterfall, plot_football, facts_display, sources_table]
+                )
+                
+                
+                btn_calc.click(
+                    refresh_market_sizing,
+                    inputs=[scenario_radio, tam_input, sam_pct_input, som_share_input, context_ticker, input_industry, input_region, input_horizon, input_currency],
+                    outputs=[plot_waterfall, plot_football, facts_display, sources_table]
+                )
+                
+                # Save scope on click or blur (Disabled or Removed)
+                # btn_save_scope.click(...)
+
+            # ─── ONGLET 2 : ANALYSE CONCURRENTIELLE ───
+            with gr.Tab("⚔️ Analyse Concurrentielle"):
+                gr.Markdown("### 🌍 Paysage Concurrentiel & Positionnement")
+                
+                with gr.Row():
+                    with gr.Column(scale=1):
+                         # Configuration
+                         comp_company_input = gr.Textbox(label="Entreprise Cible", value="Tesla")
+                         btn_comp_gen = gr.Button("🔎 Scanner la Concurrence", variant="primary")
+                         
+                         gr.Markdown("#### 📋 Liste des Concurrents (Facts)")
+                         comp_list_html = gr.HTML()
+                    
+                    with gr.Column(scale=2):
+                        # Matrice Positionnement
+                        plot_positioning = gr.Plot(label="Positionnement Prix/Valeur")
+                
+                gr.Markdown("---")
+                gr.Markdown("### 📊 Comparatif Fonctionnel & Financier")
+                comp_table = gr.Dataframe(
+                    headers=["Concurrent", "Revenus", "Part de Marché", "Différenciateur", "Menace"],
+                    datatype=["str", "number", "str", "str", "str"],
+                    interactive=False
+                )
+                
+                def update_competition(company):
+                    # 1. Get Strategic facts (SWOT/BCG/PESTEL) just to have some context or use new logic
+                    # For competition specifically, we might need a specific call or mocks
+                    # Let's mock a competition landscape based on the company name
+                    
+                    # Mock logic for demo "Facts-First"
+                    competitors = facts_manager.facts_manager.get_fact_value("competitor_list", ["Comp A", "Comp B"])
+                    
+                    # Generate a positioning matrix (Mock)
+                    # X axis: Price, Y axis: Quality
+                    import plotly.express as px
+                    df_comp = pd.DataFrame([
+                        {"Name": company, "Price": 8, "Quality": 9, "Type": "Target"},
+                        {"Name": "Competitor A", "Price": 6, "Quality": 7, "Type": "Direct"},
+                        {"Name": "Competitor B", "Price": 9, "Quality": 8, "Type": "Premium"},
+                        {"Name": "Competitor C", "Price": 4, "Quality": 5, "Type": "Low-Cost"},
+                    ])
+                    
+                    fig_pos = px.scatter(df_comp, x="Price", y="Quality", color="Type", text="Name", 
+                                         size=[30, 20, 20, 20], title="Matrice Prix / Valeur Percecue")
+                    fig_pos.update_traces(textposition='top center')
+                    fig_pos.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", 
+                                          font=dict(color="white"))
+                    fig_pos.update_xaxes(showgrid=True, gridcolor='rgba(255,255,255,0.1)', range=[0, 10])
+                    fig_pos.update_yaxes(showgrid=True, gridcolor='rgba(255,255,255,0.1)', range=[0, 10])
+
+                    # HTML List
+                    list_html = "<ul>"
+                    for c in competitors:
+                        list_html += f"<li><b>{c}</b> <span style='color:orange'>[Fact Check Required]</span></li>"
+                    list_html += "</ul>"
+                    
+                    # Table
+                    df_table = pd.DataFrame([
+                        [company, 95000000, "15%", "Innovation", "N/A"],
+                        ["Competitor A", 50000000, "8%", "Prix", "High"],
+                        ["Competitor B", 80000000, "12%", "Service", "Medium"],
+                    ], columns=["Concurrent", "Revenus", "Part de Marché", "Différenciateur", "Menace"])
+
+                    return list_html, fig_pos, df_table
+
+                btn_comp_gen.click(update_competition, inputs=[comp_company_input], outputs=[comp_list_html, plot_positioning, comp_table])
+
+            # ─── ONGLET 3 : CHAT STRATÉGIQUE (Conservé pour support) ───
+            with gr.Tab("💬 Assistant & Sources"):
+                 with gr.Row():
+                     with gr.Column():
+                         gr.Markdown("### 🧠 Assistant Méthodologique\nPosez des questions sur les sources ou la méthode.")
+                         gr.ChatInterface(fn=rag_stream_function)
+
+    # Monkey patch launch() to default include theme and css
+    # This solves the depreciation warning while keeping the specialized KPMG branding by default
+    original_launch = demo.launch
+    def launch_with_theme(*args, **kwargs):
+        if "theme" not in kwargs: kwargs["theme"] = theme
+        if "css" not in kwargs: kwargs["css"] = custom_css
+        return original_launch(*args, **kwargs)
+    
+    demo.launch = launch_with_theme
+    
+    # Launch the dashboard
+    demo.launch(share=False)
+    
+    return demo
+
+if __name__ == "__main__":
+    # Mock des fonctions externes pour test direct
+    def mock_rag(msg, hist): return "Ceci est une réponse simulée."
+    demo = launch_dashboard(mock_rag)
+    demo.launch()

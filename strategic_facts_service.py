@@ -18,7 +18,7 @@ Usage:
 import os
 import json
 from datetime import datetime, timedelta
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 from langchain_mistralai import ChatMistralAI
 from langchain_core.prompts import ChatPromptTemplate
@@ -442,6 +442,211 @@ Réponds UNIQUEMENT avec du JSON valide, aucun texte autour.
             "ttl_minutes": self._cache_ttl.total_seconds() / 60
         }
 
+
+    
+    def generate_market_sizing_facts(self, scope: str) -> List[Dict[str, Any]]:
+        """
+        Génère des estimations de marché (TAM/SAM/SOM) chiffrées via Mistral.
+        NOUVELLE LOGIQUE : Génération de multiples perspectives (Secondaire, Bottom-Up, Supply-Led).
+        """
+        print(f"🔄 [MARKET GENERATION] Estimation MULTI-MÉTHODES du marché pour : {scope}")
+        
+        prompt = ChatPromptTemplate.from_template("""
+        Tu es un analyste senior en Market Sizing chez KPMG.
+        Ton objectif : Construire une estimation ROBUSTE et GRANULAIRE pour le marché : "{scope}".
+        
+        ⛔️ INTERDIT : Ne me donne pas un seul chiffre magique sorti d'un chapeau.
+        ✅ OBLIGATOIRE : Tu dois déconstruire le marché selon 3 perspectives.
+
+        1️⃣ PERSPECTIVE SECONDAIRE (Si dispo)
+        - Cherche un rapport sectoriel (Gartner, IDC, Statista, Xerfi) PRÉCIS.
+        - Si le scope diffère (ex: Monde vs France), note-le.
+
+        2️⃣ PERSPECTIVE BOTTOM-UP (Volume x Prix)
+        - Estime le NOMBRE de clients cibles (ex: Nb PME en France).
+        - Estime le PRIX moyen annuel (ARPU/ACV).
+        - Fournis les briques séparément.
+
+        3️⃣ PERSPECTIVE SUPPLY-LED (Offre)
+        - Estime le CA cumulé des leaders sur ce segment précis.
+        - Estime la part de marché du Top 3 pour extrapoler le total.
+
+        4️⃣ RATIOS DE CONVERSION (SAM/SOM)
+        - Estime le % SAM (Segment accessible réaliste).
+        - Estime le % SOM (Part de marché capturable à 3 ans).
+
+        FORMAT DE SORTIE JSON STRICT :
+        {{
+            "secondary_tam": {{ "value": 5000000000, "unit": "EUR", "source": "Statista 2023", "year": "2023", "scope_match": "Global (vs Local demandé)", "confidence": 0.5 }},
+            "bottom_up": {{
+                 "target_volume": {{ "value": 140000, "unit": "entreprises", "source": "INSEE", "desc": "Nb PME Industrielles" }},
+                 "unit_price": {{ "value": 15000, "unit": "EUR/an", "source": "Benchmarking", "desc": "Licence SaaS Moyenne" }}
+            }},
+            "supply_led": {{
+                 "top_players_revenue": {{ "value": 200000000, "unit": "EUR", "source": "Rapports Annuels", "desc": "Cumul CA Leaders" }},
+                 "long_tail_factor": {{ "value": 2.5, "unit": "amplicateur", "source": "Règle Pouce", "desc": "Ratio Marché/Leaders" }}
+            }},
+            "ratios": {{
+                 "sam_pct": 20,
+                 "som_pct": 5
+            }}
+        }}
+
+        Si tu ne trouves pas de source exacte, fais une estimation de Fermi (Ordre de grandeur logique) et marque la source comme "Estimation Fermi".
+        Réponds UNIQUEMENT le JSON.
+        """)
+        
+        try:
+            llm = self._get_llm()
+            chain = prompt | llm
+            response = chain.invoke({"scope": scope})
+            
+            # Parsing
+            content = response.content.strip()
+            if "```json" in content:
+                content = content.replace("```json", "").replace("```", "")
+            
+            data = json.loads(content)
+            facts = []
+            ts = int(datetime.now().timestamp())
+            
+            # 1. SECONDARY TAM FACT
+            if "secondary_tam" in data and data["secondary_tam"].get("value"):
+                st = data["secondary_tam"]
+                facts.append({
+                    "id": f"gen_tam_sec_{ts}",
+                    "category": "market_estimation",
+                    "key": "tam_global_market", # Standard key for Engine
+                    "value": st["value"],
+                    "unit": st["unit"],
+                    "source": st.get("source", "Analyste IA"),
+                    "source_type": "Secondaire",
+                    "retrieval_method": "Rapport",
+                    "confidence": "high" if st.get("confidence", 0) > 0.7 else "medium",
+                    "notes": f"Scope Source: {st.get('scope_match', 'N/A')}. Year: {st.get('year')}",
+                    "derivation": "secondary", # NEW FIELD
+                    "coherence_score": st.get("confidence", 0.5)
+                })
+
+            # 2. BOTTOM UP FACTS
+            if "bottom_up" in data:
+                bu = data["bottom_up"]
+                if bu.get("target_volume"):
+                    facts.append({
+                        "id": f"gen_bu_vol_{ts}",
+                        "category": "market_estimation",
+                        "key": "total_potential_customers",
+                        "value": bu["target_volume"]["value"],
+                        "unit": bu["target_volume"]["unit"],
+                        "source": bu["target_volume"].get("source", "Estimation"),
+                        "source_type": "Primaire/Proxy",
+                        "notes": bu["target_volume"].get("desc", ""),
+                        "derivation": "bottom_up_brick"
+                    })
+                if bu.get("unit_price"):
+                    facts.append({
+                        "id": f"gen_bu_price_{ts}",
+                        "category": "market_estimation",
+                        "key": "average_price",
+                        "value": bu["unit_price"]["value"],
+                        "unit": bu["unit_price"]["unit"],
+                        "source": bu["unit_price"].get("source", "Estimation"),
+                        "source_type": "Estimation",
+                        "notes": bu["unit_price"].get("desc", ""),
+                        "derivation": "bottom_up_brick"
+                    })
+
+            # 3. SUPPLY LED FACTS (New Keys)
+            if "supply_led" in data:
+                sl = data["supply_led"]
+                if sl.get("top_players_revenue"):
+                    facts.append({
+                        "id": f"gen_sup_rev_{ts}",
+                        "category": "market_estimation",
+                        "key": "top_players_cumulative_revenue",
+                        "value": sl["top_players_revenue"]["value"],
+                        "unit": sl["top_players_revenue"]["unit"],
+                        "source": sl["top_players_revenue"].get("source"),
+                        "source_type": "Aggregated",
+                        "derivation": "supply_brick"
+                    })
+                if sl.get("long_tail_factor"):
+                    facts.append({
+                        "id": f"gen_sup_fac_{ts}",
+                        "category": "market_estimation",
+                        "key": "market_multiplier_factor",
+                        "value": sl["long_tail_factor"]["value"],
+                        "unit": "x",
+                        "source": sl["long_tail_factor"].get("source"),
+                        "source_type": "Heuristic",
+                        "derivation": "supply_brick"
+                    })
+
+            # 4. RATIOS
+            if "ratios" in data:
+                r = data["ratios"]
+                facts.append({
+                    "id": f"gen_sam_{ts}",
+                    "category": "market_estimation",
+                    "key": "sam_percent",
+                    "value": (r.get("sam_pct", 20) / 100.0),
+                    "unit": "%",
+                    "source": "Segmentation IA",
+                    "confidence": "medium"
+                })
+                facts.append({
+                    "id": f"gen_som_{ts}",
+                    "category": "market_estimation",
+                    "key": "som_share",
+                    "value": (r.get("som_pct", 5) / 100.0),
+                    "unit": "%",
+                    "source": "Cible Stratégique IA",
+                    "confidence": "low"
+                })
+
+            print(f"✅ [MARKET GENERATION] {len(facts)} Facts Granulaires Générés")
+            return facts
+
+        except Exception as e:
+            print(f"❌ [MARKET GENERATION] Erreur: {e}")
+            import traceback
+            traceback.print_exc()
+            return []
+
+    def find_competitors(self, scope: str) -> List[str]:
+        """
+        Identifies top 5 public competitors tickers for the given scope using Mistral.
+        Returns a list of tickers (e.g. ['SAP', 'ORCL', 'CRM']).
+        """
+        print(f"🕵️‍♂️ [COMPETITORS] Recherche des concurrents pour : {scope}")
+        
+        prompt = ChatPromptTemplate.from_template("""
+        Tu es un expert en intelligence économique.
+        Pour le marché : "{scope}", identifie les 5 entreprises cotées en bourse les plus pertinentes (Concurrents directs).
+        
+        Format attendu : Une liste JSON de leurs TICKERS (Symboles boursiers) valides sur Yahoo Finance (US ou EU).
+        Exemple : ["SAP", "ORCL", "CRM", "MSFT", "SAGE.L"]
+        
+        Réponds UNIQUEMENT le tableau JSON. Rien d'autre.
+        """)
+        
+        try:
+            llm = self._get_llm()
+            chain = prompt | llm
+            response = chain.invoke({"scope": scope})
+            
+            content = response.content.strip().replace("```json", "").replace("```", "")
+            tickers = json.loads(content)
+            
+            # Basic cleaning
+            valid_tickers = [t.strip().upper() for t in tickers if isinstance(t, str) and len(t) < 10]
+            print(f"✅ [COMPETITORS] Trouvés : {valid_tickers}")
+            return valid_tickers
+            
+        except Exception as e:
+            print(f"❌ [COMPETITORS] Erreur: {e}")
+            # Fallback list depends on scope, but return empty safe
+            return ["SAP", "ORCL", "MSFT"] # Generic Fallback
 
 # Singleton global pour l'application
 strategic_facts_service = StrategicFactsService()
