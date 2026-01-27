@@ -452,60 +452,90 @@ Réponds UNIQUEMENT avec du JSON valide, aucun texte autour.
         print(f"🔄 [MARKET GENERATION] Estimation MULTI-MÉTHODES du marché pour : {scope}")
         
         prompt = ChatPromptTemplate.from_template("""
-        Tu es un analyste senior en Market Sizing chez KPMG.
-        Ton objectif : Construire une estimation ROBUSTE et GRANULAIRE pour le marché : "{scope}".
+        Tu es l'architecte du moteur d'estimation de marché de KPMG.
         
-        PHASE 1 : DÉFINITION EXPLICITE DU SCOPE (CRITIQUE)
-        Avant tout calcul, tu dois lever les ambiguïtés :
-        - Quel est le type de marché ? (Production, Distribution ou Valeur Finale Payée ?)
-        - Qu'est-ce qui est INCLUS et EXCLU ? (ex: Logiciel seul vs Services intégrés)
-        - Quelle est l'Unité Économique ? (ex: €/Utilisateur/An vs €/Entreprise/An)
-
-        PHASE 2 : ESTIMATION MULTI-MÉTHODES
+        🎯 OBJECTIF CRITIQUE
+        Ne te contente JAMAIS de chercher un chiffre "TAM Global" sur internet.
+        Ta mission est de **CONSTRUIRE** une estimation granulaire pour le marché : "{scope}".
         
-        1️⃣ PERSPECTIVE SECONDAIRE (Si dispo)
-        - Cherche un rapport sectoriel (Gartner, IDC, Statista, Xerfi) PRÉCIS.
-        - Si le scope diffère (ex: Monde vs France), note-le.
-
-        2️⃣ PERSPECTIVE BOTTOM-UP (Volume x Prix)
-        - Estime le NOMBRE de clients cibles (ex: Nb PME en France).
-        - Estime le PRIX moyen annuel (ARPU/ACV) correspondant EXACTEMENT à l'unité économique définie.
-        - Fournis les briques séparément.
-
-        3️⃣ PERSPECTIVE SUPPLY-LED (Offre)
-        - Estime le CA cumulé des leaders sur ce segment précis.
-        - Estime la part de marché du Top 3 pour extrapoler le total.
-
-        4️⃣ RATIOS DE CONVERSION (SAM/SOM)
-        - Estime le % SAM (Segment accessible réaliste).
-        - Estime le % SOM (Part de marché capturable à 3 ans).
-
-        FORMAT DE SORTIE JSON STRICT :
+        🏗️ PHILOSOPHIE DE CONSTRUCTION (Granularité > Source Unique)
+        Pour les marchés niches ou mal documentés, tu dois décomposer le problème :
+        - Au lieu de dire "TAM = 1Md€", dis : "10k Usines x 5 Machines/Usine x 20k€/Machine".
+        - Utilise des **PROXYS** (ex: Si pas de données sur le marché du "Miel de Lavande", utilise "Marché du Miel" x "% Production Lavande").
+        
+        🧩 MÉTHODOLOGIE ATTENDUE (3 PERSPECTIVES)
+        
+        1️⃣ Perspective SECONDAIRE (Validée si possible, sinon extrapolée)
+        - Cherche un rapport de confiance. Si introuvable, déduis-le d'un marché parent (Top-Down).
+        - Ex: "Marché Global du Logiciel" -> "Part du Vertical Industrie" -> "Part du sous-segment".
+        
+        2️⃣ Perspective BOTTOM-UP (Construction par la Demande)
+        - C'est le cœur de ton estimation. Décompose en briques élémentaires :
+        - **Volume** : Base installée, Population cible, Nombre d'actes...
+        - **Intensité** : Taux d'équipement, Fréquence d'achat...
+        - **Valorisation** : Prix unitaire, Panier moyen...
+        - *Exemple Niche* : Pour "Maintenance de Ruches" -> (Nb Apiculteurs en France) x (Moyenne Ruches/Apiculteur) x (Coût Service/An).
+        
+        3️⃣ Perspective SUPPLY-LED (Offre / Concurrents)
+        - Estime le CA des leaders (ou d'un leader proxy).
+        - Applique un ratio de concentration (ex: Top 3 = 40% du marché).
+        - Si niche : CA Moyen d'un acteur type x Nombre d'acteurs estimés.
+        
+        📝 FORMAT DE SORTIE JSON STRICT
+        Tu dois fournir des champs "desc" et "source" très détaillés expliquant ta logique de construction.
+        
         {{
             "scope_definition": {{
-                "market_type": "Valeur Consommée Finale (End-User Spending)",
-                "products_included": ["Logiciels SaaS", "Maintenance"],
-                "products_excluded": ["Matériel", "Services de conseil sur mesure"],
-                "target_clients": "PME et ETI (> 50 salariés)",
-                "revenue_model": "Abonnement Récurrent (ARR)",
-                "economic_unit": "€ / Entreprise / An"
+                "market_type": "Dépenses récurrentes (OpEx)",
+                "products_included": ["Service A", "Produit B"],
+                "target_clients": "Segment précis (ex: ETI Industrielles)",
+                "economic_unit": "€ / Site / An"
             }},
-            "secondary_tam": {{ "value": 5000000000, "unit": "EUR", "source": "Statista 2023", "year": "2023", "scope_match": "Global (vs Local demandé)", "confidence": 0.5 }},
+            "secondary_tam": {{
+                 "value": 50000000, 
+                 "unit": "EUR", 
+                 "source": "Extrapolation Statista/Xerfi", 
+                 "year": "2024",
+                 "confidence": 0.6,
+                 "desc": "Dérivé du marché global (10Md€) avec un ratio de 0.5% pour ce segment niche."
+            }},
             "bottom_up": {{
-                 "target_volume": {{ "value": 140000, "unit": "entreprises", "source": "INSEE", "desc": "Nb PME Industrielles" }},
-                 "unit_price": {{ "value": 15000, "unit": "EUR/an", "source": "Benchmarking", "desc": "Licence SaaS Moyenne" }}
+                 "target_volume": {{ 
+                    "value": 2500, 
+                    "unit": "sites industriels", 
+                    "source": "INSEE + Proxy", 
+                    "desc": "Base: 5000 sites Seveso x 50% équipés potentiels." 
+                 }},
+                 "unit_price": {{ 
+                    "value": 12000, 
+                    "unit": "EUR/an", 
+                    "source": "Benchmark Prix Public", 
+                    "desc": "Prix moyen licence Enterprise (10k€) + Maintenance (2k€)." 
+                 }}
             }},
             "supply_led": {{
-                 "top_players_revenue": {{ "value": 200000000, "unit": "EUR", "source": "Rapports Annuels", "desc": "Cumul CA Leaders" }},
-                 "long_tail_factor": {{ "value": 2.5, "unit": "amplicateur", "source": "Règle Pouce", "desc": "Ratio Marché/Leaders" }}
+                 "top_players_revenue": {{ 
+                    "value": 15000000, 
+                    "unit": "EUR", 
+                    "source": "Rapports Annuels (Estimé)", 
+                    "desc": "Revenus cumulés estimé des leaders A (8M€) et B (7M€)." 
+                 }},
+                 "long_tail_factor": {{ 
+                    "value": 2.0, 
+                    "unit": "multiplicateur", 
+                    "source": "Hypothèse Pareto", 
+                    "desc": "Marché fragmenté : les leaders ne font que 50% du volume, d'où x2." 
+                 }}
             }},
             "ratios": {{
-                 "sam_pct": 20,
-                 "som_pct": 5
+                 "sam_pct": 30,
+                 "sam_desc": "On cible uniquement le segment PME (30% du volume).",
+                 "som_pct": 10,
+                 "som_desc": "Objectif de part de marché réaliste à 3 ans."
             }}
         }}
-
-        Si tu ne trouves pas de source exacte, fais une estimation de Fermi (Ordre de grandeur logique) et marque la source comme "Estimation Fermi".
+        
+        Sois CRÉATIF mais RIGOUREUX. Si tu fais une estimation de Fermi, explique-la dans "desc".
         Réponds UNIQUEMENT le JSON.
         """)
         
@@ -550,7 +580,7 @@ Réponds UNIQUEMENT avec du JSON valide, aucun texte autour.
                     "source_type": "Secondaire",
                     "retrieval_method": "Rapport",
                     "confidence": "high" if st.get("confidence", 0) > 0.7 else "medium",
-                    "notes": f"Scope Source: {st.get('scope_match', 'N/A')}. Year: {st.get('year')}",
+                    "notes": st.get("desc", f"Scope Source: {st.get('scope_match', 'N/A')}. Year: {st.get('year')}"),
                     "derivation": "secondary", # NEW FIELD
                     "coherence_score": st.get("confidence", 0.5)
                 })
@@ -595,6 +625,7 @@ Réponds UNIQUEMENT avec du JSON valide, aucun texte autour.
                         "unit": sl["top_players_revenue"]["unit"],
                         "source": sl["top_players_revenue"].get("source"),
                         "source_type": "Aggregated",
+                        "notes": sl["top_players_revenue"].get("desc", "Aggregation des revenus leaders"), # ADDED NOTES
                         "derivation": "supply_brick"
                     })
                 if sl.get("long_tail_factor"):
@@ -606,6 +637,7 @@ Réponds UNIQUEMENT avec du JSON valide, aucun texte autour.
                         "unit": "x",
                         "source": sl["long_tail_factor"].get("source"),
                         "source_type": "Heuristic",
+                        "notes": sl["long_tail_factor"].get("desc", "Facteur d'extension Pareto"), # ADDED NOTES
                         "derivation": "supply_brick"
                     })
 
@@ -619,7 +651,8 @@ Réponds UNIQUEMENT avec du JSON valide, aucun texte autour.
                     "value": (r.get("sam_pct", 20) / 100.0),
                     "unit": "%",
                     "source": "Segmentation IA",
-                    "confidence": "medium"
+                    "confidence": "medium",
+                    "notes": r.get("sam_desc", "Sélection du segment adressable.") # ADDED NOTES
                 })
                 facts.append({
                     "id": f"gen_som_{ts}",
@@ -628,7 +661,8 @@ Réponds UNIQUEMENT avec du JSON valide, aucun texte autour.
                     "value": (r.get("som_pct", 5) / 100.0),
                     "unit": "%",
                     "source": "Cible Stratégique IA",
-                    "confidence": "low"
+                    "confidence": "low",
+                    "notes": r.get("som_desc", "Part de marché cible réaliste.") # ADDED NOTES
                 })
 
             print(f"✅ [MARKET GENERATION] {len(facts)} Facts Granulaires Générés")

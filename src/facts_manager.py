@@ -22,7 +22,12 @@ class FactsManager:
     }
     """
     
-    def __init__(self, json_path: str = "market_sizing_facts.json"):
+    def __init__(self, json_path: str = None):
+        if json_path is None:
+            # Robustly locate data directory relative to this file
+            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            json_path = os.path.join(base_dir, "data", "market_sizing_facts.json")
+            
         self.json_path = json_path
         self._load_facts()
 
@@ -57,6 +62,10 @@ class FactsManager:
         if key:
             filtered = [f for f in filtered if f.get("key") == key]
         return filtered
+        
+    def get_all_keys(self) -> List[str]:
+        """Returns a list of all unique keys in the facts database."""
+        return list(set([f.get("key") for f in self.facts if f.get("key")]))
 
     def get_fact_value(self, key: str, default: Any = None) -> Any:
         """Helper to get a single fact value by key."""
@@ -435,6 +444,97 @@ class FactsManager:
             print(f"❌ Error ingesting strategic facts: {e}")
             import traceback
             traceback.print_exc()
+
+    def generate_competitive_seed_data(self):
+        """
+        Generates seed facts specifically for the Competitive Analysis Module demo.
+        Only runs if no competitive facts exist.
+        """
+        # Check if already populated
+        existing = self.get_fact_value("competitor_list")
+        if existing and len(existing) > 0:
+            # OPTIONAL: Clear and regenerate if you want to force update sources
+            # But for now we respect existing data. 
+            # To force update for the user, we might need them to clear session or we force overwrite here.
+            # Let's force update the fields that might be missing sources.
+            pass
+
+        print("🚦 Generating Competitive Seed Data for Demo (Enriched Sources)...")
+        
+        # 0. The Actors
+        competitors = ["NexusCorp", "AgileFlow", "OldSchool Inc", "BudgetSoft"]
+        self.add_or_update_fact({
+            "key": "competitor_list", 
+            "value": competitors, 
+            "category": "competition",
+            "source": "KPMG Competitive Landscape Report 2024",
+            "source_type": "Interne",
+            "confidence": "High"
+        })
+        
+        # 1. Actors Metadata (Block 1)
+        meta = [
+            ("NexusCorp", "Leader", "Global", "500M", "Annual Report 2023"),
+            ("AgileFlow", "Challenger", "Europe", "50M", "Crunchbase"),
+            ("OldSchool Inc", "Incumbent", "Global", "1.2B", "Annual Report 2023"),
+            ("BudgetSoft", "Niche (Low Cost)", "Asia", "10M", "Company Website")
+        ]
+        for name, typ, geo, rev, src in meta:
+            self.add_or_update_fact({"key": f"comp_{name}_type", "value": typ, "category": "competition", "source": "Analyste KPMG", "confidence": "High"})
+            self.add_or_update_fact({"key": f"comp_{name}_geo", "value": geo, "category": "competition", "source": src, "confidence": "High"})
+            self.add_or_update_fact({"key": f"comp_{name}_revenue", "value": rev, "category": "competition", "source": src, "confidence": "High"})
+
+        # 2. Offerings (Block 2)
+        features = ["Cloud Native", "AI Features", "24/7 Support", "Custom API"]
+        self.add_or_update_fact({"key": "market_key_features", "value": features, "category": "competition", "source": "Market Study Q1", "confidence": "High"})
+        
+        # Assign random feature capabilities
+        # Nexus: All Yes
+        for f in features: 
+            self.add_or_update_fact({
+                "key": f"comp_NexusCorp_feat_{f.lower().replace(' ', '_')}", 
+                "value": "✅ Yes", "category": "competition", 
+                "source": "NexusCorp Feature Page",
+                "confidence": "High"
+            })
+        
+        # BudgetSoft: All No except API
+        for f in features: 
+            val = "❌ No" if "API" not in f else "✅ Yes"
+            self.add_or_update_fact({"key": f"comp_BudgetSoft_feat_{f.lower().replace(' ', '_')}", 
+                                     "value": val, "category": "competition",
+                                     "source": "G2 Crowd Reviews",
+                                     "confidence": "Medium"
+                                     })
+            
+        # Others mixed
+        self.add_or_update_fact({"key": "comp_AgileFlow_feat_cloud_native", "value": "✅ Yes", "category": "competition", "source": "AgileFlow Doc", "confidence": "High"})
+        self.add_or_update_fact({"key": "comp_AgileFlow_feat_ai_features", "value": "🚧 Beta", "category": "competition", "source": "Press Release Jan 2025", "confidence": "Medium"})
+        self.add_or_update_fact({"key": "comp_AgileFlow_feat_24/7_support", "value": "❌ No", "category": "competition", "source": "Service Terms", "confidence": "High"})
+        self.add_or_update_fact({"key": "comp_AgileFlow_feat_custom_api", "value": "✅ Yes", "category": "competition", "source": "Developer Portal", "confidence": "High"})
+
+        self.add_or_update_fact({"key": "comp_OldSchool Inc_feat_cloud_native", "value": "❌ No", "category": "competition", "source": "Tech Radar", "confidence": "Medium"})
+        self.add_or_update_fact({"key": "comp_OldSchool Inc_feat_ai_features", "value": "❌ No", "category": "competition", "source": "Tech Radar", "confidence": "High"})
+        self.add_or_update_fact({"key": "comp_OldSchool Inc_feat_24/7_support", "value": "✅ Yes", "category": "competition", "source": "Client Contract Template", "confidence": "High"})
+        self.add_or_update_fact({"key": "comp_OldSchool Inc_feat_custom_api", "value": "❌ Legacy", "category": "competition", "source": "Developer Portal", "confidence": "High"})
+
+        # 3. Differentiation Claims (Block 3)
+        self.add_or_update_fact({"key": "comp_NexusCorp_claim", "value": "The All-in-One Enterprise Standard", "category": "competition", "source": "Homepage Hero", "confidence": "High"})
+        self.add_or_update_fact({"key": "comp_AgileFlow_claim", "value": "Move fast with AI-driven workflows", "category": "competition", "source": "LinkedIn Bio", "confidence": "High"})
+        self.add_or_update_fact({"key": "comp_OldSchool Inc_claim", "value": "Reliability you can trust since 1980", "category": "competition", "source": "About Us Page", "confidence": "High"})
+        self.add_or_update_fact({"key": "comp_BudgetSoft_claim", "value": "Lowest price guaranteed", "category": "competition", "source": "Pricing Page", "confidence": "High"})
+
+        # 4. Market Expectations (Block 4) -> "Market Voice"
+        expectations = [
+            {"criterion": "Real-time Collaboration", "importance": "High", "met": "Yes"},
+            {"criterion": "Native AI Integration", "importance": "Critical", "met": "Partial"}, # Gap?
+            {"criterion": "Deep Customization", "importance": "Medium", "met": "Yes"},
+            {"criterion": "Transparent Pricing", "importance": "High", "met": "No"} # BIG Gap
+        ]
+        self.add_or_update_fact({"key": "market_expectations", "value": expectations, "category": "competition", "source": "Forrester Wave 2024", "confidence": "Medium"})
+        
+        self.save_facts()
+        print("✅ Competitive Seed Data Ingested (Enriched).")
 
 # Singleton instance
 facts_manager = FactsManager()
