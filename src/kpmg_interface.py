@@ -81,6 +81,72 @@ def launch_dashboard(rag_stream_function):
     .meta-row { display: flex; justify-content: space-between; font-size: 0.8em; }
     .meta-label { opacity: 0.6; }
     .meta-val { font-weight: 600; color: white; text-align: right; }
+
+    /* NEW: SEGMENT CARDS STYLE */
+    .segment-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 20px;
+        margin-top: 15px;
+    }
+    .segment-card {
+        background: #1E1E1E;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        overflow: hidden;
+        transition: transform 0.2s, box-shadow 0.2s;
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+    }
+    .segment-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+        border-color: rgba(255, 255, 255, 0.2);
+    }
+    .card-header {
+        padding: 15px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        background: rgba(255, 255, 255, 0.02);
+    }
+    .card-title {
+        font-weight: 700;
+        font-size: 1.1em;
+        color: white;
+        margin-bottom: 4px;
+    }
+    .card-badge {
+        font-size: 0.7em;
+        padding: 2px 8px;
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.1);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    .card-body {
+        padding: 15px;
+        flex-grow: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+    }
+    .card-metric {
+        background: rgba(0, 0, 0, 0.2);
+        padding: 8px 12px;
+        border-radius: 8px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin: 10px 0;
+    }
+    .metric-value {
+        font-weight: 800;
+        font-size: 1.1em;
+    }
+
     """
 
     with gr.Blocks(title="KPMG Market Sizer") as demo:
@@ -494,14 +560,15 @@ def launch_dashboard(rag_stream_function):
                 
                 # SECTION 4: SEGMENTS D'ENTREPRISES
                 gr.Markdown("### 🏢 3. Segments d'Entreprises (4-8 max)")
-                out_seg_segments = gr.Dataframe(label="Types d'Entreprises Concurrentes", interactive=False, wrap=True)
+                out_seg_cards = gr.HTML(label="Cartes des Segments")
                 
-                # SECTION 5: DISTRIBUTION DE VALEUR
-                with gr.Accordion("💰 4. Distribution de la Valeur du Marché", open=True):
+                # SECTION 5: DISTRIBUTION DE VALEUR & CARTE
+                with gr.Accordion("💰 4. Dynamique de Valeur & Carte du Marché", open=True):
                     with gr.Row():
-                        out_seg_pie = gr.Plot(label="Répartition par Type d'Acteurs")
-                        out_seg_bubble = gr.Plot(label="Carte du Marché (Intégration × Valeur)")
+                        out_seg_bubble = gr.Plot(label="Carte du Marché (Positionnement & Valeur)")
+                        out_seg_bar = gr.Plot(label="Répartition de la Valeur Captée")
                     out_seg_value_analysis = gr.HTML()
+
                 
                 # SECTION 6: POSITIONNEMENT ENTREPRISE
                 with gr.Accordion("🎯 5. Positionnement de l'Entreprise de Référence", open=True):
@@ -607,87 +674,194 @@ def launch_dashboard(rag_stream_function):
                         })
                     df_axes = pd.DataFrame(axes_for_df) if axes_for_df else pd.DataFrame()
                     
-                    # 3. COMPANY SEGMENTS TABLE
+                    # 3. SEGMENT CARDS & CHARTS PREPARATION
                     segments = analysis.get("company_segments", [])
-                    seg_for_df = []
-                    for seg in segments:
-                        mkt_share = seg.get("market_share_captured", {})
-                        seg_for_df.append({
-                            "ID": seg.get("segment_id", ""),
-                            "Type d'Entreprise": seg.get("segment_name", ""),
-                            "Logique de Valeur": seg.get("value_creation_logic", "")[:60] + "..." if len(seg.get("value_creation_logic", "")) > 60 else seg.get("value_creation_logic", ""),
-                            "Unité Éco": seg.get("target_economic_unit", ""),
-                            "Modèle Revenus": seg.get("revenue_model", ""),
-                            "Prix": seg.get("pricing_position", ""),
-                            "Valeur Captée (M€)": f"{mkt_share.get('value', 0)/1e6:.1f}" if mkt_share.get('value') else "N/A",
-                            "Part Marché (%)": mkt_share.get("percentage_of_total", 0),
-                            "Acteurs Représentatifs": ", ".join(seg.get("representative_players", [])[:3])
-                        })
-                    df_segments = pd.DataFrame(seg_for_df) if seg_for_df else pd.DataFrame()
+                    
+                    # Define consistent color palette
+                    import plotly.express as px
+                    import plotly.graph_objects as go
+                    colors = px.colors.qualitative.Bold  # Strong, distinct colors
+                    
+                    segment_cards_html = '<div class="segment-grid">'
+                    seg_data_for_plots = []
+                    
+                    if segments:
+                        for idx, seg in enumerate(segments):
+                            color = colors[idx % len(colors)]
+                            seg_id = seg.get("segment_id", "")
+                            seg_name = seg.get("segment_name", "Segment Inconnu")
+                            rev_model = seg.get("revenue_model", "N/A")
+                            logic = seg.get("value_creation_logic", "N/A")
+                            e_unit = seg.get("target_economic_unit", "N/A")
+                            mkt_share = seg.get("market_share_captured", {})
+                            val_captured = mkt_share.get("value", 0)
+                            pct_total = mkt_share.get("percentage_of_total", 0)
+                            players = ", ".join(seg.get("representative_players", [])[:3])
+                            
+                            # Format Value
+                            val_fmt = f"€{val_captured/1e6:.1f}M" if val_captured else "N/A"
+                            
+                            # Prepare Data for Plots
+                            seg_data_for_plots.append({
+                                "name": seg_name,
+                                "value": val_captured,
+                                "pct": pct_total,
+                                "color": color,
+                                "id": seg_id
+                            })
+                            
+                            # HTML Card Construction
+                            segment_cards_html += f"""
+                            <div class="segment-card" style="border-top: 5px solid {color};">
+                                <div class="card-header">
+                                    <div>
+                                        <div class="card-title">{seg_name}</div>
+                                        <div style="font-size: 0.8em; opacity: 0.6; font-style: italic;">{rev_model}</div>
+                                    </div>
+                                    <div class="card-badge" style="color: {color}; border: 1px solid {color};">{seg_id}</div>
+                                </div>
+                                <div class="card-body">
+                                    <div style="font-size: 0.9em; margin-bottom: 12px; line-height: 1.4;">{logic}</div>
+                                    
+                                    <div class="card-metric" style="border-left: 3px solid {color};">
+                                        <div style="font-size: 0.8em; opacity: 0.8;">Valeur Captée</div>
+                                        <div class="metric-value" style="color: {color};">{val_fmt}</div>
+                                    </div>
+                                    
+                                    <div style="font-size: 0.8em; display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                        <span style="opacity: 0.6;">Part de Marché:</span>
+                                        <span style="font-weight: bold;">{pct_total}%</span>
+                                    </div>
+                                    <div style="font-size: 0.8em; display: flex; justify-content: space-between; margin-bottom: 12px;">
+                                        <span style="opacity: 0.6;">Unité Éco:</span>
+                                        <span style="font-weight: bold;">{e_unit}</span>
+                                    </div>
+                                    
+                                    <div style="margin-top: auto; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.05);">
+                                        <div style="font-size: 0.75em; text-transform: uppercase; opacity: 0.5; margin-bottom: 4px;">Acteurs Clés</div>
+                                        <div style="font-size: 0.85em; color: #E0E0E0;">{players}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            """
+                    
+                    segment_cards_html += '</div>'
                     
                     # 4. VISUALIZATIONS
-                    import plotly.graph_objects as go
-                    import plotly.express as px
                     
-                    # Pie chart: Market share by segment
-                    if segments:
-                        seg_names = [s.get("segment_name", s.get("segment_id")) for s in segments]
-                        seg_values = [s.get("market_share_captured", {}).get("percentage_of_total", 0) for s in segments]
-                        
-                        fig_pie = go.Figure(data=[go.Pie(
-                            labels=seg_names,
-                            values=seg_values,
-                            hole=0.4,
-                            textinfo='label+percent',
-                            marker=dict(colors=px.colors.qualitative.Set2)
-                        )])
-                        fig_pie.update_layout(
-                            title="Répartition du Marché par Type d'Acteurs",
-                            plot_bgcolor="rgba(0,0,0,0)",
-                            paper_bgcolor="rgba(0,0,0,0)",
-                            font=dict(color="white")
-                        )
-                    else:
-                        fig_pie = go.Figure()
-                        fig_pie.update_layout(title="Pas de données disponibles")
-                    
-                    # Bubble chart: Integration × Value
+                    # A. Market Map (Bubble Chart)
                     viz = analysis.get("visualizations", {})
                     market_map = viz.get("market_map", {})
                     
                     if market_map.get("data"):
                         fig_bubble = go.Figure()
-                        for pt in market_map["data"]:
-                            seg_name = next((s.get("segment_name", pt["segment"]) for s in segments if s.get("segment_id") == pt["segment"]), pt["segment"])
+                        
+                        # Find max size for scaling
+                        bubble_data = market_map["data"]
+                        max_size = max([pt.get("size", 10) for pt in bubble_data]) if bubble_data else 10
+                        
+                        for pt in bubble_data:
+                            # Match segment to get name and color
+                            seg_match = next((s for s in seg_data_for_plots if s["id"] == pt["segment"]), None)
+                            seg_name = seg_match["name"] if seg_match else pt["segment"]
+                            seg_color = seg_match["color"] if seg_match else "#FFFFFF"
+                            
                             fig_bubble.add_trace(go.Scatter(
                                 x=[pt.get("x", 0)],
                                 y=[pt.get("y", 0)],
                                 mode='markers+text',
-                                marker=dict(size=pt.get("size", 20) * 2, opacity=0.7),
-                                text=[seg_name],
+                                marker=dict(
+                                    size=pt.get("size", 20),
+                                    sizemode='area',
+                                    sizeref=2.*max_size/(60.**2), # Scaling bubble size
+                                    sizemin=8,
+                                    color=seg_color,
+                                    opacity=0.8,
+                                    line=dict(width=1, color='white')
+                                ),
+                                text=[f"<b>{seg_name}</b><br><i>{pt.get('segment', '')}</i>"],
                                 textposition="top center",
-                                name=seg_name
+                                hovertemplate='<b>%{text}</b><br>Intégration: %{x}<br>Valeur: %{y}<extra></extra>',
+                                name=seg_name,
+                                showlegend=False # Legend handles by the card grid colors
                             ))
+                        
                         fig_bubble.update_layout(
-                            title=f"Carte du Marché: {market_map.get('x_axis', 'X')} × {market_map.get('y_axis', 'Y')}",
-                            xaxis_title=market_map.get("x_axis", "Degré d'intégration"),
-                            yaxis_title=market_map.get("y_axis", "Valeur captée"),
-                            plot_bgcolor="rgba(0,0,0,0)",
+                            title=dict(
+                                text="<b>Carte Stratégique du Marché</b><br><span style='font-size:0.9em; opacity:0.7'>Positionnement des Modèles Économiques</span>",
+                                font=dict(color="white", size=16)
+                            ),
+                            xaxis=dict(
+                                title=market_map.get("x_axis", "Degré d'intégration"),
+                                showgrid=True,
+                                gridcolor='rgba(255,255,255,0.1)',
+                                zeroline=True,
+                                zerolinecolor='rgba(255,255,255,0.2)'
+                            ),
+                            yaxis=dict(
+                                title=market_map.get("y_axis", "Valeur captée"),
+                                showgrid=True,
+                                gridcolor='rgba(255,255,255,0.1)',
+                                zeroline=True,
+                                zerolinecolor='rgba(255,255,255,0.2)'
+                            ),
+                            plot_bgcolor="#1E1E1E",
                             paper_bgcolor="rgba(0,0,0,0)",
-                            font=dict(color="white"),
-                            showlegend=False
+                            font=dict(color="#E0E0E0", family="Inter"),
+                            margin=dict(l=40, r=40, t=60, b=40)
                         )
                     else:
                         fig_bubble = go.Figure()
-                        fig_bubble.update_layout(title="Pas de données de carte disponibles")
-                    
+                        fig_bubble.update_layout(title="Données de carte non disponibles", paper_bgcolor="rgba(0,0,0,0)", font=dict(color="white"))
+
+                    # B. Value Distribution (Horizontal Bar Chart)
+                    if seg_data_for_plots:
+                        # Sort by value
+                        seg_data_sorted = sorted(seg_data_for_plots, key=lambda x: x["value"] if x["value"] else 0, reverse=False) # Ascending for horizontal bar
+                        
+                        names = [d["name"] for d in seg_data_sorted]
+                        values = [d["value"] for d in seg_data_sorted]
+                        pcts = [d["pct"] for d in seg_data_sorted]
+                        colors_mapped = [d["color"] for d in seg_data_sorted]
+                        text_labels = [f" {v/1e6:.1f} M€ ({p}%)" for v, p in zip(values, pcts)]
+                        
+                        fig_bar = go.Figure(go.Bar(
+                            x=values,
+                            y=names,
+                            orientation='h',
+                            text=text_labels,
+                            textposition='outside', # Text outside bar for readability
+                            marker=dict(color=colors_mapped, opacity=0.9, line=dict(width=0))
+                        ))
+                        
+                        fig_bar.update_layout(
+                            title=dict(
+                                text="<b>Répartition de la Valeur Captée</b><br><span style='font-size:0.9em; opacity:0.7'>Par Segment d'Entreprise</span>",
+                                font=dict(color="white", size=16)
+                            ),
+                            xaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.1)', title="Valeur (EUR)"),
+                            yaxis=dict(showgrid=False),
+                            plot_bgcolor="rgba(0,0,0,0)",
+                            paper_bgcolor="rgba(0,0,0,0)",
+                            font=dict(color="#E0E0E0", family="Inter"),
+                            margin=dict(l=20, r=20, t=60, b=20),
+                            uniformtext_minsize=8, 
+                            uniformtext_mode='hide'
+                        )
+                    else:
+                        fig_bar = go.Figure()
+                        fig_bar.update_layout(title="Pas de données", paper_bgcolor="rgba(0,0,0,0)", font=dict(color="white"))
+
+
                     # Value distribution analysis
                     dist = analysis.get("market_value_distribution", {})
                     value_html = f"""
-                    <div style="background: #1E1E1E; padding: 20px; border-radius: 10px; margin-top: 15px;">
-                        <div style="font-weight: bold; margin-bottom: 10px;">📈 Analyse de Concentration</div>
-                        <div style="margin-bottom: 10px;">{dist.get('concentration_analysis', 'N/A')}</div>
-                        <div style="color: #0091DA;"><b>Tendance de Migration de Valeur:</b> {dist.get('value_migration_trends', 'N/A')}</div>
+                    <div style="background: #1E1E1E; padding: 20px; border-radius: 10px; margin-top: 15px; border-left: 4px solid #FFAB00;">
+                        <div style="font-weight: bold; margin-bottom: 5px; color: #FFAB00;">📈 Analyse de Concentration & Tendance</div>
+                        <div style="margin-bottom: 10px; opacity: 0.9;">{dist.get('concentration_analysis', 'N/A')}</div>
+                        <div style="padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.1);">
+                            <span style="opacity: 0.7;">Migration de Valeur:</span> <b>{dist.get('value_migration_trends', 'N/A')}</b>
+                        </div>
                     </div>
                     """
                     
@@ -700,7 +874,10 @@ def launch_dashboard(rag_stream_function):
                     core_html = "<div style='background: rgba(0,145,218,0.1); padding: 15px; border-radius: 8px; border-left: 3px solid #0091DA;'><div style='font-weight: bold; margin-bottom: 10px;'>🎯 Cœur de Marché</div>"
                     for c in current:
                         if c.get("segment_id") in core_ids:
-                            seg_name = next((s.get("segment_name", c.get("segment_id")) for s in segments if s.get("segment_id") == c.get("segment_id")), c.get("segment_id"))
+                            # Find segment name
+                            matched = next((s for s in segments if s.get("segment_id") == c.get("segment_id")), None)
+                            seg_name = matched.get("segment_name", c.get("segment_id")) if matched else c.get("segment_id")
+                            
                             core_html += f"<div style='padding: 8px; margin: 5px 0; background: rgba(0,0,0,0.3); border-radius: 4px;'><b>{seg_name}</b><br><span style='opacity: 0.8;'>Présence: {c.get('presence_level', 'N/A')} | Part: ~{c.get('estimated_share_in_segment', 0)}%</span></div>"
                     core_html += "</div>"
                     
@@ -708,7 +885,9 @@ def launch_dashboard(rag_stream_function):
                     adjacent = pos.get("credible_adjacent_segments", [])
                     adj_html = "<div style='background: rgba(0,200,83,0.1); padding: 15px; border-radius: 8px; border-left: 3px solid #00C853;'><div style='font-weight: bold; margin-bottom: 10px;'>🚀 Adjacents Crédibles</div>"
                     for a in adjacent:
-                        seg_name = next((s.get("segment_name", a.get("segment_id")) for s in segments if s.get("segment_id") == a.get("segment_id")), a.get("segment_id"))
+                        matched = next((s for s in segments if s.get("segment_id") == a.get("segment_id")), None)
+                        seg_name = matched.get("segment_name", a.get("segment_id")) if matched else a.get("segment_id")
+                        
                         adj_html += f"<div style='padding: 8px; margin: 5px 0; background: rgba(0,0,0,0.3); border-radius: 4px;'><b>{seg_name}</b><br><span style='opacity: 0.8;'>Faisabilité: {a.get('expansion_feasibility', 'N/A')}</span><br><i>{a.get('strategic_rationale', '')}</i></div>"
                     adj_html += "</div>"
                     
@@ -716,7 +895,9 @@ def launch_dashboard(rag_stream_function):
                     oos = pos.get("out_of_scope_segments", [])
                     oos_html = "<div style='background: rgba(255,82,82,0.1); padding: 15px; border-radius: 8px; border-left: 3px solid #FF5252;'><div style='font-weight: bold; margin-bottom: 10px;'>❌ Hors Scope Réaliste</div>"
                     for o in oos:
-                        seg_name = next((s.get("segment_name", o.get("segment_id")) for s in segments if s.get("segment_id") == o.get("segment_id")), o.get("segment_id"))
+                        matched = next((s for s in segments if s.get("segment_id") == o.get("segment_id")), None)
+                        seg_name = matched.get("segment_name", o.get("segment_id")) if matched else o.get("segment_id")
+                        
                         oos_html += f"<div style='padding: 8px; margin: 5px 0; background: rgba(0,0,0,0.3); border-radius: 4px;'><b>{seg_name}</b><br><i>{o.get('reason', 'N/A')}</i></div>"
                     oos_html += "</div>"
                     
@@ -761,8 +942,8 @@ def launch_dashboard(rag_stream_function):
                         ctx_html,
                         logic_html,
                         df_axes,
-                        df_segments,
-                        fig_pie,
+                        segment_cards_html, # NEW: HTML Cards
+                        fig_bar,            # NEW: Bar Chart
                         fig_bubble,
                         value_html,
                         core_html,
@@ -780,8 +961,8 @@ def launch_dashboard(rag_stream_function):
                         out_seg_context,
                         out_seg_logic,
                         out_seg_axes,
-                        out_seg_segments,
-                        out_seg_pie,
+                        out_seg_cards,    # Changed Name
+                        out_seg_bar,      # Changed Name
                         out_seg_bubble,
                         out_seg_value_analysis,
                         out_seg_core,
