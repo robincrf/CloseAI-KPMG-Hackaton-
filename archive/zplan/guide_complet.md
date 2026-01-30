@@ -377,7 +377,7 @@ __pycache__/
 
 ---
 
-## 📚 Références Techniques
+##  Références Techniques
 
 ### Documentation Officielle
 

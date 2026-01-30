@@ -121,7 +121,13 @@ def launch_dashboard(rag_stream_function):
                 """)
                 with gr.Row():
                     with gr.Column():
-                        gr.ChatInterface(fn=rag_stream_function)
+                        gr.ChatInterface(
+                            fn=rag_stream_function,
+                            chatbot=gr.Chatbot(
+                                value=[{"role": "assistant", "content": "Bonjour consultant KPMG ! 👋 Avez-vous une question sur un marché ? une entreprise ?"}],
+                                height=500
+                            )
+                        )
             
             # ─── ONGLET 2 : MARKET SIZING ───
             with gr.Tab("Taille de marché"):
@@ -197,6 +203,22 @@ def launch_dashboard(rag_stream_function):
                 with gr.Accordion("5. Calcul Explicite", open=True):
                     out_calculation = gr.HTML()
                 
+                # SECTION 6b: HYPOTHÈSES DÉTAILLÉES (NEW)
+                with gr.Accordion("5b. Hypothèses Quantifiées", open=True):
+                    out_hypotheses_detailed = gr.HTML(label="Détail des Hypothèses avec Benchmarks")
+                
+                # SECTION 6c: ANALYSE DE SENSIBILITÉ (NEW)
+                with gr.Accordion("5c. Analyse de Sensibilité", open=True):
+                    out_sensitivity_analysis = gr.HTML(label="Scénarios et Impact des Variables")
+                
+                # SECTION 6d: IMPACT RÉGLEMENTAIRE (NEW)
+                with gr.Accordion("5d. Impact Réglementaire", open=True):
+                    out_regulatory_impact = gr.HTML(label="Lien Régulation → Hypothèses")
+                
+                # SECTION 6e: JUSTIFICATION DU PÉRIMÈTRE (NEW)
+                with gr.Accordion("5e. Justification du Périmètre", open=True):
+                    out_scope_analysis = gr.HTML(label="Périmètre et Alternatives")
+                
                 # SECTION 7: VALIDATION (REMPLACEMENT UX)
                 with gr.Accordion("6. Contrôle de cohérence", open=True):
                     # REMPLACÉ: gr.Dataframe
@@ -214,7 +236,7 @@ def launch_dashboard(rag_stream_function):
                     if not company.strip():
                         return (
                             "<div style='color:#FF5252; padding:20px;'>Veuillez entrer un nom d'entreprise.</div>",
-                            "", "", "", "", "", "", "", "", "", "", "",
+                            "", "", "", "", "", "", "", "", "", "", "", "", "", "", "",
                             "", "France", "2025", "", ""  # States unchanged on error
                         )
                     
@@ -230,7 +252,7 @@ def launch_dashboard(rag_stream_function):
                         error_msg = result.get("error", "Erreur inconnue")
                         return (
                             f"<div style='color:#FF5252; padding:20px;'>Erreur : {error_msg}</div>",
-                            "", "", "", "", "", "", "", "", "", "", "",
+                            "", "", "", "", "", "", "", "", "", "", "", "", "", "", "",
                             "", "France", "2025", "", ""  # States unchanged on error
                         )
                     
@@ -258,7 +280,7 @@ def launch_dashboard(rag_stream_function):
                     
                     mkt_html = f"""
                     <div style="background: #1E1E1E; padding: 20px; border-radius: 10px;">
-                        <div style="font-weight: bold; color: #0091DA; font-size: 1.1em; margin-bottom: 10px;">📍 {mkt.get('market_name', 'N/A')}</div>
+                        <div style="font-weight: bold; color: #0091DA; font-size: 1.1em; margin-bottom: 10px;">{mkt.get('market_name', 'N/A')}</div>
                         <div style="font-style: italic; margin-bottom: 15px; opacity: 0.9;">{mkt.get('market_justification', 'N/A')}</div>
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
                             <div style="padding: 10px; background: rgba(0,0,0,0.2); border-radius: 5px;">
@@ -364,21 +386,204 @@ def launch_dashboard(rag_stream_function):
                     </div>
                     """
                     
+                    # 5b. HYPOTHESES DETAILED (NEW)
+                    hypotheses = analysis.get("hypotheses_detailed", [])
+                    hyp_html = "<div style='display: grid; gap: 15px;'>"
+                    for hyp in hypotheses:
+                        benchmarks = hyp.get("benchmark_references", [])
+                        bench_html = ""
+                        if benchmarks:
+                            bench_html = "<div style='display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px;'>"
+                            for b in benchmarks:
+                                bench_html += f"<span style='background: rgba(0,145,218,0.2); padding: 3px 8px; border-radius: 4px; font-size: 0.75em;'>{b.get('country', 'N/A')}: {b.get('value', 'N/A')}% ({b.get('year', '')})</span>"
+                            bench_html += "</div>"
+                        
+                        conf_range = hyp.get("confidence_range", {})
+                        range_html = f"[{conf_range.get('low', 'N/A')} - {conf_range.get('central', 'N/A')} - {conf_range.get('high', 'N/A')}]" if conf_range else ""
+                        
+                        hyp_html += f"""
+                        <div style="background: #1E1E1E; padding: 15px; border-radius: 8px; border-left: 3px solid #6200EA;">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                <div style="font-weight: bold; color: #F8FAFC;">{hyp.get('variable', 'N/A').replace('_', ' ').title()}</div>
+                                <span style="background: #6200EA; color: white; padding: 2px 10px; border-radius: 10px; font-size: 0.8em;">{hyp.get('central_value', 'N/A')} {hyp.get('unit', '')}</span>
+                            </div>
+                            <div style="font-size: 0.85em; color: #CBD5E1; margin-bottom: 8px;">{hyp.get('economic_rationale', 'N/A')}</div>
+                            <div style="font-size: 0.8em; opacity: 0.7;">Intervalle de confiance: {range_html}</div>
+                            {bench_html}
+                            <div style="font-size: 0.75em; color: #FFAB00; margin-top: 8px;">Sensibilité: {hyp.get('sensitivity_impact', 'N/A')}</div>
+                        </div>
+                        """
+                    if not hypotheses:
+                        hyp_html += "<div style='opacity: 0.5;'>Aucune hypothèse détaillée disponible.</div>"
+                    hyp_html += "</div>"
+                    
+                    # 5c. SENSITIVITY ANALYSIS (NEW)
+                    sensitivity = analysis.get("sensitivity_analysis", {})
+                    scenarios = sensitivity.get("scenarios", [])
+                    sensitivities = sensitivity.get("key_sensitivities", [])
+                    
+                    sens_html = "<div>"
+                    
+                    # Scenarios Table
+                    if scenarios:
+                        sens_html += "<div style='margin-bottom: 20px;'>"
+                        sens_html += "<div style='font-weight: bold; margin-bottom: 10px; color: #94A3B8;'>Scénarios</div>"
+                        sens_html += "<table style='width: 100%; border-collapse: collapse; font-size: 0.85em;'>"
+                        sens_html += "<thead><tr style='background: #1E293B;'>"
+                        sens_html += "<th style='padding: 10px; text-align: left;'>Scénario</th>"
+                        sens_html += "<th style='padding: 10px; text-align: center;'>Adoption</th>"
+                        sens_html += "<th style='padding: 10px; text-align: center;'>Prix</th>"
+                        sens_html += "<th style='padding: 10px; text-align: right; font-weight: bold;'>Résultat</th>"
+                        sens_html += "</tr></thead><tbody>"
+                        
+                        scenario_colors = {"Conservateur": "#4ADE80", "Central": "#0091DA", "Optimiste": "#FFAB00"}
+                        for sc in scenarios:
+                            color = scenario_colors.get(sc.get('name', ''), '#9E9E9E')
+                            result_val = sc.get('result', 0)
+                            result_fmt = f"€{result_val/1e6:.1f}M" if result_val >= 1e6 else f"€{result_val:,.0f}"
+                            sens_html += f"""
+                            <tr style='border-bottom: 1px solid #334155;'>
+                                <td style='padding: 10px;'><span style='color: {color}; font-weight: bold;'>{sc.get('name', 'N/A')}</span><br><span style='font-size: 0.8em; opacity: 0.7;'>{sc.get('description', '')[:50]}...</span></td>
+                                <td style='padding: 10px; text-align: center;'>{sc.get('adoption_rate', 'N/A')}%</td>
+                                <td style='padding: 10px; text-align: center;'>€{sc.get('price', 0):,}</td>
+                                <td style='padding: 10px; text-align: right; font-weight: bold; color: {color};'>{result_fmt}</td>
+                            </tr>
+                            """
+                        sens_html += "</tbody></table></div>"
+                    
+                    # Key Sensitivities
+                    if sensitivities:
+                        sens_html += "<div style='font-weight: bold; margin-bottom: 10px; color: #94A3B8;'>Impact des Variables Clés</div>"
+                        sens_html += "<div style='display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px;'>"
+                        for s in sensitivities:
+                            impact_color = "#4ADE80" if '+' in str(s.get('impact_percent', '')) else "#F87171"
+                            sens_html += f"""
+                            <div style='background: #1E293B; padding: 12px; border-radius: 8px;'>
+                                <div style='font-size: 0.8em; opacity: 0.7;'>{s.get('variable', 'N/A').replace('_', ' ').title()}</div>
+                                <div style='font-size: 0.85em; margin: 5px 0;'>{s.get('delta', 'N/A')}</div>
+                                <div style='color: {impact_color}; font-weight: bold;'>{s.get('impact_percent', 'N/A')}</div>
+                            </div>
+                            """
+                        sens_html += "</div>"
+                    
+                    sens_html += f"<div style='margin-top: 15px; font-style: italic; opacity: 0.8; font-size: 0.85em;'>{sensitivity.get('sensitivity_conclusion', '')}</div>"
+                    sens_html += "</div>"
+                    
+                    # 5d. REGULATORY IMPACT (NEW)
+                    regulatory = analysis.get("regulatory_impact", {})
+                    regulations = regulatory.get("key_regulations", [])
+                    reg_links = regulatory.get("regulation_hypothesis_links", [])
+                    
+                    reg_html = "<div style='display: grid; gap: 15px;'>"
+                    for reg in regulations:
+                        impact_color = "#4ADE80" if reg.get('impact_direction') == 'positive' else "#F87171"
+                        reg_html += f"""
+                        <div style='background: #1E1E1E; padding: 15px; border-radius: 8px; border-left: 3px solid {impact_color};'>
+                            <div style='display: flex; justify-content: space-between; margin-bottom: 8px;'>
+                                <div style='font-weight: bold; color: #F8FAFC;'>{reg.get('regulation_name', 'N/A')}</div>
+                                <span style='background: {impact_color}; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.75em;'>{reg.get('status', 'N/A').upper()}</span>
+                            </div>
+                            <div style='font-size: 0.85em; color: #CBD5E1; margin-bottom: 8px;'>{reg.get('description', 'N/A')}</div>
+                            <div style='display: flex; gap: 15px; font-size: 0.8em;'>
+                                <span style='opacity: 0.7;'>Organe: {reg.get('regulatory_body', 'N/A')}</span>
+                                <span style='opacity: 0.7;'>Impact: {reg.get('impact_on', 'N/A').replace('_', ' ')}</span>
+                            </div>
+                            <div style='margin-top: 10px; padding: 8px; background: rgba(0,145,218,0.1); border-radius: 4px; font-size: 0.85em;'>
+                                <b>Quantification:</b> {reg.get('quantification', 'N/A')}
+                            </div>
+                            <div style='font-size: 0.75em; opacity: 0.6; margin-top: 5px;'>Source: {reg.get('source', 'N/A')}</div>
+                        </div>
+                        """
+                    
+                    # Regulation-Hypothesis Links
+                    if reg_links:
+                        reg_html += "<div style='background: rgba(255,171,0,0.1); padding: 12px; border-radius: 8px; margin-top: 10px;'>"
+                        reg_html += "<div style='font-weight: bold; color: #FFAB00; margin-bottom: 8px;'>Liens Régulation → Hypothèses</div>"
+                        for link in reg_links:
+                            reg_html += f"<div style='font-size: 0.85em; margin-bottom: 5px;'>• <b>{link.get('regulation_id', 'N/A')}</b> → <b>{link.get('hypothesis_id', 'N/A')}</b>: {link.get('link_explanation', 'N/A')}</div>"
+                        reg_html += "</div>"
+                    
+                    if regulatory.get('regulatory_uncertainty'):
+                        reg_html += f"<div style='font-size: 0.85em; color: #FFAB00; margin-top: 10px;'>Incertitude: {regulatory.get('regulatory_uncertainty', '')}</div>"
+                    
+                    if not regulations:
+                        reg_html += "<div style='opacity: 0.5;'>Aucun impact réglementaire documenté.</div>"
+                    reg_html += "</div>"
+                    
+                    # 5e. SCOPE ANALYSIS (NEW)
+                    scope = analysis.get("scope_analysis", {})
+                    alternatives = scope.get("alternatives_considered", [])
+                    expansion = scope.get("expansion_potential", {})
+                    
+                    stance_colors = {"conservative": "#4ADE80", "balanced": "#0091DA", "expansive": "#FFAB00"}
+                    stance = scope.get("scope_stance", "conservative")
+                    stance_color = stance_colors.get(stance, "#9E9E9E")
+                    stance_label = {"conservative": "Conservateur", "balanced": "Équilibré", "expansive": "Expansif"}.get(stance, stance)
+                    
+                    scope_html = f"""
+                    <div style='background: #1E1E1E; padding: 20px; border-radius: 10px;'>
+                        <div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;'>
+                            <div style='font-size: 1.1em; font-weight: bold;'>{scope.get('chosen_scope', 'N/A')}</div>
+                            <span style='background: {stance_color}; color: white; padding: 4px 12px; border-radius: 15px; font-size: 0.8em;'>{stance_label.upper()}</span>
+                        </div>
+                        <div style='font-size: 0.9em; color: #CBD5E1; margin-bottom: 15px;'>{scope.get('scope_rationale', 'N/A')}</div>
+                    """
+                    
+                    if alternatives:
+                        scope_html += "<div style='font-weight: bold; margin-bottom: 10px; color: #94A3B8;'>Alternatives Non Retenues</div>"
+                        scope_html += "<div style='display: grid; gap: 10px;'>"
+                        for alt in alternatives:
+                            conf_color = {"HIGH": "#4ADE80", "MEDIUM": "#FFAB00", "LOW": "#F87171", "VERY LOW": "#9E9E9E"}.get(alt.get('confidence', 'LOW'), '#9E9E9E')
+                            val = alt.get('additional_value_estimate', 0)
+                            val_fmt = f"+€{val/1e6:.1f}M" if val >= 1e6 else f"+€{val:,.0f}"
+                            scope_html += f"""
+                            <div style='background: #1E293B; padding: 12px; border-radius: 6px;'>
+                                <div style='display: flex; justify-content: space-between;'>
+                                    <div style='font-weight: bold; font-size: 0.9em;'>{alt.get('scope', 'N/A')}</div>
+                                    <div><span style='color: {conf_color};'>{val_fmt}</span> <span style='opacity: 0.5; font-size: 0.75em;'>({alt.get('confidence', 'N/A')})</span></div>
+                                </div>
+                                <div style='font-size: 0.8em; opacity: 0.7; margin-top: 5px;'>{alt.get('reason_excluded', 'N/A')}</div>
+                            </div>
+                            """
+                        scope_html += "</div>"
+                    
+                    if expansion:
+                        total_val = expansion.get('total_if_all_included', 0)
+                        total_fmt = f"€{total_val/1e6:.1f}M" if total_val >= 1e6 else f"€{total_val:,.0f}"
+                        scope_html += f"""
+                        <div style='margin-top: 15px; padding: 12px; background: rgba(0,145,218,0.1); border-radius: 8px;'>
+                            <div style='font-size: 0.85em;'><b>Potentiel si tous périmètres inclus:</b> {total_fmt} (Confiance: {expansion.get('confidence', 'N/A')})</div>
+                            <div style='font-size: 0.8em; opacity: 0.7; margin-top: 5px;'>{expansion.get('recommendation', '')}</div>
+                        </div>
+                        """
+                    
+                    scope_html += "</div>"
+                    
                     # 6. VALIDATION CHECKLIST (HTML)
                     val = analysis.get("validation", {})
                     checks = val.get("sanity_checks", [])
                     
                     check_html = "<div class='check-list'>"
                     for c in checks:
-                        # Determine Status
+                        # Determine Status - handle non-numeric diff values
                         diff = c.get('diff_percentage', 0)
-                        # Remove % sign if present and convert to float
-                        if isinstance(diff, str):
-                            diff = float(diff.replace('%', ''))
+                        # Remove % sign if present and try to convert to float
+                        try:
+                            if isinstance(diff, str):
+                                # Try to extract numeric part
+                                diff_clean = diff.replace('%', '').replace('+', '').replace('-', '', 1).strip()
+                                if diff_clean.replace('.', '').isdigit():
+                                    diff = float(diff.replace('%', ''))
+                                else:
+                                    diff = None  # Non-numeric value like "N/A"
+                            is_ok = diff is None or abs(diff) < 20
+                        except (ValueError, TypeError):
+                            diff = None
+                            is_ok = True  # Default to OK if can't parse
                         
-                        is_ok = abs(diff) < 20
                         status = "ok" if is_ok else "warn"
-                        icon = "✅" if is_ok else "⚠️"
+                        icon = "" if is_ok else ""
+                        diff_display = f"{diff}%" if diff is not None else c.get('diff_percentage', 'N/A')
                         
                         check_html += f"""
                         <div class="check-item {status}">
@@ -389,7 +594,7 @@ def launch_dashboard(rag_stream_function):
                             </div>
                             <div style="text-align:right;">
                                 <div style="font-weight:bold;">{c.get('comparison_value', 'N/A')}</div>
-                                <div style="font-size:0.7em; opacity:0.6;">(Diff: {diff}%)</div>
+                                <div style="font-size:0.7em; opacity:0.6;">(Diff: {diff_display})</div>
                             </div>
                         </div>
                         """
@@ -445,22 +650,33 @@ def launch_dashboard(rag_stream_function):
                     </div>
                     """
                     
-                    # 9. SOURCES LIST (HTML)
+                    # 9. SOURCES LIST (HTML) - Enhanced for detailed sources
                     sources = analysis.get("sources_registry", [])
-                    sources_html = "<div class='source-list'>"
+                    sources_html = "<div style='display: grid; gap: 12px;'>"
                     for s in sources:
+                        reliability_color = {"HIGH": "#4ADE80", "MEDIUM": "#FFAB00", "LOW": "#F87171"}.get(s.get('reliability', 'MEDIUM'), '#9E9E9E')
+                        url = s.get('source_url', '')
+                        url_html = f"<a href='{url}' target='_blank' style='color: #0091DA; font-size: 0.75em;'>Voir source →</a>" if url and not url.endswith('...') else ""
+                        
                         sources_html += f"""
-                        <div class="source-item" style="border-left: 2px solid #666;">
-                            <div class="source-header">
-                                <span>{s.get('date', 'N/A')}</span>
-                                <span class="source-badge secondary">{s.get('type', 'Source').upper()}</span>
+                        <div style="background: #1E293B; padding: 12px; border-radius: 8px; border-left: 3px solid {reliability_color};">
+                            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
+                                <div>
+                                    <div style="font-weight: bold; color: #F8FAFC;">{s.get('source_name', s.get('name', 'Source'))}</div>
+                                    <div style="font-size: 0.8em; opacity: 0.7;">{s.get('source_full_name', '')}</div>
+                                </div>
+                                <span style="background: {reliability_color}; color: #0F172A; padding: 2px 8px; border-radius: 4px; font-size: 0.7em; font-weight: bold;">{s.get('reliability', 'N/A')}</span>
                             </div>
-                            <div style="color: #0091DA; font-weight: bold; margin-bottom: 3px;">{s.get('name', 'Source')}</div>
-                            <div style="font-size: 0.85em; opacity: 0.8;">{s.get('details', '')}</div>
+                            <div style="font-size: 0.85em; color: #CBD5E1; margin-bottom: 5px;">{s.get('source_reference', s.get('details', ''))}</div>
+                            <div style="font-size: 0.8em; opacity: 0.7;">Données utilisées: {s.get('data_used', 'N/A')}</div>
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
+                                <span style="font-size: 0.75em; opacity: 0.6;">Date: {s.get('date', 'N/A')}</span>
+                                {url_html}
+                            </div>
                         </div>
                         """
                     if not sources:
-                        sources_html += "<div style='opacity:0.5'>Pas de sources enregistrées.</div>"
+                        sources_html += "<div style='opacity:0.5; padding: 10px;'>Pas de sources enregistrées.</div>"
                     sources_html += "</div>"
                     
                     # GENERATE SIZING SUMMARY for downstream modules
@@ -495,6 +711,10 @@ Fiabilité: {conf}""".strip()
                         uv_html,
                         ar_html,
                         calc_html,
+                        hyp_html,          # NEW: Hypotheses detailed
+                        sens_html,         # NEW: Sensitivity analysis
+                        reg_html,          # NEW: Regulatory impact
+                        scope_html,        # NEW: Scope analysis
                         final_html,
                         rel_html,
                         check_html,       # HTML REPLACEMENT
@@ -519,6 +739,10 @@ Fiabilité: {conf}""".strip()
                         out_unit_value,
                         out_adoption_rate,
                         out_calculation,
+                        out_hypotheses_detailed,   # NEW: Hypotheses
+                        out_sensitivity_analysis,  # NEW: Sensitivity
+                        out_regulatory_impact,     # NEW: Regulatory
+                        out_scope_analysis,        # NEW: Scope
                         out_final_result,
                         out_reliability,
                         out_validation_checklist, # Updated Output
@@ -980,7 +1204,7 @@ Fiabilité: {conf}""".strip()
                         </div>
                         <div style="font-size: 0.95em; margin-bottom: 10px;">{rel.get('confidence_justification', 'N/A')}</div>
                         <div style="color: #FFAB00; font-size: 0.85em;">
-                            <b>⚠️ Limitations:</b> {', '.join(rel.get('key_limitations', []))}
+                            <b>Limitations:</b> {', '.join(rel.get('key_limitations', []))}
                         </div>
                     </div>
                     """
@@ -1381,9 +1605,9 @@ Fiabilité: {conf}""".strip()
                             "ESG": "#4CAF50"
                         }
                         maturity_badges = {
-                            "émergente": ("🌱", "#4CAF50"),
-                            "en accélération": ("🚀", "#FF9800"),
-                            "mature": ("🏛️", "#9E9E9E")
+                            "émergente": ("", "#4CAF50"),
+                            "en accélération": ("", "#FF9800"),
+                            "mature": ("", "#9E9E9E")
                         }
                         
                         trends_html = f"""
@@ -1403,7 +1627,7 @@ Fiabilité: {conf}""".strip()
                             driver = tr.get("driver", "technologique")
                             color = driver_colors.get(driver, "#6200EA")
                             mat = tr.get("maturity", "émergente")
-                            mat_icon, mat_color = maturity_badges.get(mat, ("🌱", "#4CAF50"))
+                            mat_icon, mat_color = maturity_badges.get(mat, ("", "#4CAF50"))
                             trend_type = tr.get("type", "structurelle")
                             type_badge = "📊" if trend_type == "structurelle" else "📈"
                             
@@ -1419,8 +1643,8 @@ Fiabilité: {conf}""".strip()
                                 <div style="font-weight: bold; color: #F8FAFC; margin-bottom: 8px;">{tr.get('title', 'N/A')}</div>
                                 <div style="font-size: 0.85em; color: #CBD5E1; line-height: 1.5; margin-bottom: 10px;">{tr.get('description', 'N/A')}</div>
                                 <div style="display: flex; justify-content: space-between; font-size: 0.75em; opacity: 0.7;">
-                                    <span>⏱️ {tr.get('horizon', 'moyen terme')}</span>
-                                    <span>📍 {tr.get('geographic_scope', country)}</span>
+                                    <span>⏱{tr.get('horizon', 'moyen terme')}</span>
+                                    <span>{tr.get('geographic_scope', country)}</span>
                                 </div>
                                 {f'<div style="margin-top: 8px; font-size: 0.7em; color: #FFAB00;">⚠️ Incertitude: {tr.get("uncertainty_reason", "")}</div>' if tr.get('uncertainty_level') in ['moyen', 'élevé'] else ''}
                             </div>
@@ -1431,7 +1655,7 @@ Fiabilité: {conf}""".strip()
                         if weak_signals:
                             trends_html += """
                             <div style="margin-top: 20px; padding: 15px; background: rgba(255,171,0,0.1); border-radius: 8px; border: 1px dashed #FFAB00;">
-                                <div style="font-weight: bold; color: #FFAB00; margin-bottom: 10px;">🔮 Signaux Faibles</div>
+                                <div style="font-weight: bold; color: #FFAB00; margin-bottom: 10px;">Signaux Faibles</div>
                                 <div style="display: grid; gap: 10px;">
                             """
                             for sig in weak_signals:
@@ -1493,7 +1717,7 @@ Fiabilité: {conf}""".strip()
                             </div>
                         </div>
                         <div style="font-size: 0.85em; color: #FFAB00;">
-                            <b>⚠️ Limitations:</b> {', '.join(rel.get('key_limitations', [])[:2])}
+                            <b>Limitations:</b> {', '.join(rel.get('key_limitations', [])[:2])}
                         </div>
                     </div>
                     """

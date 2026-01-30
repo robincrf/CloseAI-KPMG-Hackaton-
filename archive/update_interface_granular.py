@@ -106,7 +106,7 @@ new_function_code = """                # LOGIQUE MARKET SIZING (UPDATED FOR GRAN
                                 if isinstance(d['value'], (int, float)) and d['value'] > 1000:
                                     d_val = f"{d['value']:,.0f} {d.get('unit','')}"
                             
-                            status_icon = "✅" if d.get("value") is not None else "⚠️"
+                            status_icon = "✅" if d.get("value") is not None else ""
                             
                             # Source Type Badge
                             src_type = d.get("source_type", "Standard")

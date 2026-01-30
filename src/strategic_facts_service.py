@@ -1066,16 +1066,21 @@ Aucune donnée non traçable n'est autorisée. Si un fact global est utilisé, t
     
     "facts_used": [
         {{
-            "fact_id": "FACT_LOCAL_001",
-            "description": "Description du fait",
-            "value": 10000,
-            "unit": "EUR|unités|%",
-            "source": "Nom EXACT de la source",
+            "fact_id": "FACT_001",
+            "key": "population_medecins_liberaux",
+            "description": "Description précise du fait",
+            "value": 102000,
+            "unit": "médecins",
+            "source_name": "DREES - Direction de la recherche, des études, de l'évaluation et des statistiques",
+            "source_reference": "Portrait des professionnels de santé, édition 2024",
+            "source_url": "https://drees.solidarites-sante.gouv.fr/...",
+            "source_date": "2024",
             "source_type": "primaire|secondaire|proxy",
-            "date": "2024",
+            "reliability": "HIGH|MEDIUM|LOW",
             "country": "{country}",
             "is_global_adjusted": false,
-            "adjustment_method": null
+            "adjustment_method": null,
+            "notes": "Donnée officielle, mise à jour annuelle"
         }}
     ],
     
@@ -1086,121 +1091,336 @@ Aucune donnée non traçable n'est autorisée. Si un fact global est utilisé, t
             "relevance": "Pourquoi cette unité est pertinente"
         }},
         "addressable_population": {{
-            "total_units_in_country": 50000,
-            "total_units_source": "Source du nombre total",
+            "total_units_in_country": 102000,
+            "total_units_source": "DREES 2024 - Portrait des professionnels de santé",
             "filters_applied": [
                 {{
                     "filter_name": "Spécialité médicale",
                     "filter_value": "Généralistes uniquement",
-                    "remaining_units": 35000,
-                    "source_or_hypothesis": "INSEE 2024 / Hypothèse basée sur..."
+                    "remaining_units": 55000,
+                    "source_name": "CNOM - Conseil National de l'Ordre des Médecins",
+                    "source_reference": "Atlas de la démographie médicale 2024",
+                    "source_date": "2024",
+                    "is_hypothesis": false
                 }},
                 {{
                     "filter_name": "Équipement numérique",
                     "filter_value": "Connectés internet haut débit",
-                    "remaining_units": 30000,
-                    "source_or_hypothesis": "ARCEP 2024"
+                    "remaining_units": 49500,
+                    "source_name": "ARCEP",
+                    "source_reference": "Baromètre du numérique 2024",
+                    "source_date": "2024",
+                    "is_hypothesis": false
                 }},
                 {{
                     "filter_name": "Capacité de paiement",
-                    "filter_value": "Revenus > seuil X",
-                    "remaining_units": 25000,
-                    "source_or_hypothesis": "Hypothèse: 85% des connectés"
+                    "filter_value": "Revenus bruts > 50,000 EUR/an",
+                    "remaining_units": 42000,
+                    "source_name": "Hypothèse",
+                    "source_reference": "Basée sur CARMF - Revenu moyen des médecins libéraux: 92,000 EUR brut",
+                    "source_date": "2023",
+                    "is_hypothesis": true,
+                    "hypothesis_rationale": "ARPU SaaS (1200 EUR) représente 1.3% du revenu moyen, capacité d'absorption élevée"
                 }}
             ],
-            "final_addressable_units": 25000
+            "final_addressable_units": 42000
         }},
         "local_unit_value": {{
             "annual_price_local": 1200,
             "currency": "EUR",
-            "price_source": "Pricing public / Estimation secteur",
-            "comparison_vs_reference": "Prix France: 1500€ → Ajustement -20% pour {country}",
-            "adjustment_rationale": "Pouvoir d'achat inférieur de X%, concurrence locale plus forte"
+            "price_source": "Doctolib pricing public 2024",
+            "price_source_url": "https://www.doctolib.fr/tarifs",
+            "comparison_vs_reference": "Prix France: 1200 EUR - marché de référence",
+            "adjustment_rationale": "Pas d'ajustement - pays de référence"
         }},
         "adoption_rate": {{
             "estimated_rate_percent": 15,
-            "rate_justification": "Marché émergent, adoption progressive",
-            "rate_source": "Benchmark marchés similaires / Hypothèse prudente"
+            "rate_justification": "Marché en phase de croissance, adoption progressive",
+            "rate_source": "Benchmark marchés similaires"
+        }}
+    }},
+    
+    "hypotheses_detailed": [
+        {{
+            "hypothesis_id": "HYP_001",
+            "variable": "adoption_rate",
+            "central_value": 15,
+            "unit": "%",
+            "justification_type": "benchmark",
+            "benchmark_references": [
+                {{"country": "Belgique", "value": 18, "source": "E-Santé Belgique 2024", "year": 2024}},
+                {{"country": "Allemagne", "value": 12, "source": "BVITG Digital Health Survey", "year": 2023}},
+                {{"country": "Pays-Bas", "value": 22, "source": "NIVEL 2024", "year": 2024}}
+            ],
+            "economic_rationale": "ARPU de 1200 EUR représente ~1.3% du CA moyen médecin libéral (92k EUR brut/an CARMF 2023). Seuil acceptable pour adoption rapide.",
+            "confidence_range": {{"low": 10, "central": 15, "high": 22}},
+            "sensitivity_impact": "Chaque point de variation impacte le résultat de ~6.7%"
+        }},
+        {{
+            "hypothesis_id": "HYP_002",
+            "variable": "capacity_threshold",
+            "central_value": 50000,
+            "unit": "EUR/an revenu brut",
+            "justification_type": "economic_rationale",
+            "economic_rationale": "Seuil de capacité de paiement: ARPU (1200 EUR) < 3% du revenu brut. Médecins sous 50k EUR brut ont des contraintes budgétaires plus fortes.",
+            "confidence_range": {{"low": 40000, "central": 50000, "high": 60000}},
+            "sensitivity_impact": "Seuil à 40k EUR → +7% unités éligibles. Seuil à 60k EUR → -12% unités éligibles."
+        }}
+    ],
+    
+    "sensitivity_analysis": {{
+        "scenarios": [
+            {{
+                "name": "Conservateur",
+                "description": "Hypothèses prudentes: adoption basse, prix stable",
+                "adoption_rate": 10,
+                "price": 1200,
+                "addressable_units": 42000,
+                "result": 5040000,
+                "probability_assessment": "Scénario si concurrence accrue ou régulation restrictive"
+            }},
+            {{
+                "name": "Central",
+                "description": "Hypothèses réalistes basées sur benchmarks",
+                "adoption_rate": 15,
+                "price": 1200,
+                "addressable_units": 42000,
+                "result": 7560000,
+                "probability_assessment": "Scénario le plus probable basé sur trajectoire actuelle"
+            }},
+            {{
+                "name": "Optimiste",
+                "description": "Hypothèses favorables: adoption rapide, up-sell pricing",
+                "adoption_rate": 22,
+                "price": 1320,
+                "addressable_units": 42000,
+                "result": 12196800,
+                "probability_assessment": "Scénario si remboursement étendu et adoption accélérée"
+            }}
+        ],
+        "key_sensitivities": [
+            {{
+                "variable": "adoption_rate",
+                "delta": "+5 points",
+                "base_value": 15,
+                "new_value": 20,
+                "impact_absolute": 2520000,
+                "impact_percent": "+33%"
+            }},
+            {{
+                "variable": "price",
+                "delta": "-10%",
+                "base_value": 1200,
+                "new_value": 1080,
+                "impact_absolute": -756000,
+                "impact_percent": "-10%"
+            }},
+            {{
+                "variable": "addressable_units",
+                "delta": "+10%",
+                "base_value": 42000,
+                "new_value": 46200,
+                "impact_absolute": 756000,
+                "impact_percent": "+10%"
+            }}
+        ],
+        "sensitivity_conclusion": "Le taux d'adoption est la variable la plus sensible. Variation prioritaire à monitorer."
+    }},
+    
+    "regulatory_impact": {{
+        "key_regulations": [
+            {{
+                "regulation_id": "REG_001",
+                "regulation_name": "Remboursement téléconsultation",
+                "regulatory_body": "CNAM / Assurance Maladie",
+                "status": "active",
+                "effective_date": "2018 (élargi 2020)",
+                "description": "Prise en charge à 100% des téléconsultations depuis 2020",
+                "impact_on": "adoption_rate",
+                "impact_direction": "positive",
+                "quantification": "+5-10 points d'adoption vs marchés sans remboursement (ex: UK avant NHS Digital)",
+                "source": "Rapport IGAS sur la télémédecine 2023"
+            }},
+            {{
+                "regulation_id": "REG_002",
+                "regulation_name": "Obligation de prescription dématérialisée",
+                "regulatory_body": "Ministère de la Santé",
+                "status": "progressive",
+                "effective_date": "2024-2025",
+                "description": "Obligation progressive de prescription électronique",
+                "impact_on": "addressable_units",
+                "impact_direction": "positive",
+                "quantification": "Augmentation de la base équipée de +5-8% par an",
+                "source": "Feuille de route du numérique en santé 2023-2027"
+            }}
+        ],
+        "regulation_hypothesis_links": [
+            {{
+                "regulation_id": "REG_001",
+                "hypothesis_id": "HYP_001",
+                "link_explanation": "Le remboursement CNAM justifie un taux d'adoption supérieur aux pays sans prise en charge (UK: 8%, France: 15%)"
+            }}
+        ],
+        "regulatory_uncertainty": "Évolution possible des conditions de remboursement post-2025, à surveiller"
+    }},
+    
+    "scope_analysis": {{
+        "chosen_scope": "Médecins généralistes libéraux uniquement",
+        "scope_stance": "conservative",
+        "scope_rationale": "Périmètre volontairement restreint aux généralistes libéraux (core market Doctolib) pour maximiser la fiabilité. Les spécialistes et établissements hospitaliers ont des modèles économiques différents.",
+        "alternatives_considered": [
+            {{
+                "scope": "Inclure spécialistes libéraux (+47,000 unités)",
+                "reason_excluded": "Modèle économique et tarification différents. Adoption plus variable par spécialité. Nécessiterait segmentation dédiée.",
+                "additional_value_estimate": 4500000,
+                "confidence": "LOW"
+            }},
+            {{
+                "scope": "Inclure télé-expertise inter-praticiens",
+                "reason_excluded": "Marché distinct avec régulation spécifique (avenant 6 convention médicale). Modèle B2B vs B2C.",
+                "additional_value_estimate": 1200000,
+                "confidence": "LOW"
+            }},
+            {{
+                "scope": "Extension paramédicaux (infirmiers, kinés)",
+                "reason_excluded": "Hors périmètre offre actuelle Doctolib. Capacité de paiement très différente.",
+                "additional_value_estimate": 2000000,
+                "confidence": "VERY LOW"
+            }}
+        ],
+        "expansion_potential": {{
+            "total_if_all_included": 15260000,
+            "confidence": "LOW",
+            "recommendation": "Valider le périmètre core avant extension"
         }}
     }},
     
     "calculation": {{
         "formula": "Taille du marché = Unités éligibles × Prix annuel local × Taux d'adoption",
         "step_by_step": [
-            "1. Unités éligibles: 25,000",
-            "2. Prix annuel local: 1,200 EUR",
-            "3. Taux d'adoption réaliste: 15%",
-            "4. Calcul: 25,000 × 1,200 × 0.15 = 4,500,000 EUR"
+            "1. Unités totales: 102,000 (DREES 2024)",
+            "2. Après filtre généralistes: 55,000 (CNOM 2024)",
+            "3. Après filtre numérique: 49,500 (ARCEP 2024)",
+            "4. Après filtre capacité paiement: 42,000 (Hypothèse économique)",
+            "5. Prix annuel local: 1,200 EUR (Pricing public Doctolib)",
+            "6. Taux d'adoption: 15% (Benchmark: BE 18%, DE 12%, NL 22%)",
+            "7. Calcul: 42,000 × 1,200 × 0.15 = 7,560,000 EUR"
         ],
         "intermediate_values": {{
-            "gross_potential": 30000000,
-            "after_filters": 25000000,
-            "with_adoption": 4500000
+            "gross_potential": 50400000,
+            "after_filters": 50400000,
+            "with_adoption": 7560000
         }},
         "final_estimate": {{
-            "value": 4500000,
+            "value": 7560000,
             "unit": "EUR",
             "year": "{year}",
-            "range_low": 3500000,
-            "range_high": 6000000
+            "range_low": 5040000,
+            "range_high": 12196800
         }}
     }},
     
     "validation": {{
         "sanity_checks": [
             {{
-                "check": "Comparaison avec rapport sectoriel local",
-                "reference_value": 5000000,
-                "reference_source": "Xerfi {country} 2024",
-                "delta_percent": -10,
-                "explanation": "Écart expliqué par périmètre plus restrictif"
+                "check_name": "Comparaison Xerfi France",
+                "comparison_value": 8000000,
+                "reference_source": "Xerfi France - Marché de la e-santé 2024",
+                "diff_percentage": "-5%",
+                "explanation": "Écart faible expliqué par périmètre plus restrictif (généralistes only vs. tous médecins)"
             }},
             {{
-                "check": "Benchmark régional (pays similaire)",
-                "reference_value": 4800000,
-                "reference_source": "IDC Europe Est 2024",
-                "delta_percent": -6,
-                "explanation": "Cohérent avec benchmark régional"
+                "check_name": "Revenus publiés Doctolib France",
+                "comparison_value": 250000000,
+                "reference_source": "Societe.com / Comptes annuels 2023",
+                "diff_percentage": "N/A - référence CA total",
+                "explanation": "Notre estimation couvre ~3% du CA total - cohérent car nous ne ciblons que généralistes SaaS"
             }}
         ],
-        "coherence_assessment": "L'estimation est cohérente avec les benchmarks disponibles"
+        "coherence_assessment": "Estimation cohérente avec benchmarks sectoriels et données publiques."
     }},
     
     "reliability": {{
-        "overall_confidence": "HIGH|MEDIUM|LOW",
-        "confidence_justification": "Justification basée sur qualité des données, nombre d'hypothèses, granularité",
+        "overall_confidence": "MEDIUM",
+        "confidence_justification": "Données sources de qualité (INSEE, DREES, CNOM), mais 2 hypothèses clés (adoption, capacité paiement) non validées terrain.",
         "data_quality_score": 75,
-        "hypothesis_count": 3,
+        "hypothesis_count": 2,
+        "sourced_facts_count": 4,
         "key_uncertainties": [
-            "Incertitude 1: Taux d'adoption difficile à valider",
-            "Incertitude 2: Prix local basé sur estimation"
+            "Taux d'adoption: benchmark pays voisins mais pas de donnée France spécifique au segment",
+            "Seuil capacité de paiement: rationale économique mais pas de validation empirique"
         ],
         "limitations": [
-            "Données locales limitées pour ce marché",
-            "Hypothèse sur le pricing non validée"
+            "Données de revenus médecins issues de 2023 (CARMF)",
+            "Périmètre volontairement conservateur - sous-estime le potentiel total"
         ],
         "recommendations": [
-            "Valider le pricing avec des acteurs locaux",
-            "Affiner le taux d'adoption via étude terrain"
+            "Valider le taux d'adoption avec panel médecins non équipés",
+            "Affiner le seuil de capacité de paiement par étude terrain"
         ]
     }},
     
     "sources_registry": [
         {{
             "source_id": "SRC_001",
-            "source_name": "INSEE",
-            "source_url": "https://www.insee.fr/...",
-            "data_used": "Nombre de médecins libéraux",
-            "reliability": "HIGH"
+            "source_name": "DREES",
+            "source_full_name": "Direction de la recherche, des études, de l'évaluation et des statistiques",
+            "source_reference": "Portrait des professionnels de santé, édition 2024",
+            "source_url": "https://drees.solidarites-sante.gouv.fr/publications-communique-de-presse/panoramas-de-la-drees/portrait-des-professionnels-de-sante",
+            "data_used": "Nombre total de médecins libéraux en France",
+            "reliability": "HIGH",
+            "date": "2024"
+        }},
+        {{
+            "source_id": "SRC_002",
+            "source_name": "CNOM",
+            "source_full_name": "Conseil National de l'Ordre des Médecins",
+            "source_reference": "Atlas de la démographie médicale 2024",
+            "source_url": "https://www.conseil-national.medecin.fr/lordre-medecins/conseil-national-lordre/demographie-medicale",
+            "data_used": "Répartition par spécialité (généralistes vs spécialistes)",
+            "reliability": "HIGH",
+            "date": "2024"
+        }},
+        {{
+            "source_id": "SRC_003",
+            "source_name": "ARCEP",
+            "source_full_name": "Autorité de régulation des communications électroniques",
+            "source_reference": "Baromètre du numérique 2024",
+            "source_url": "https://www.arcep.fr/cartes-et-donnees/nos-publications-chiffrees/numerique/le-barometre-du-numerique.html",
+            "data_used": "Taux d'équipement numérique des professionnels",
+            "reliability": "HIGH",
+            "date": "2024"
+        }},
+        {{
+            "source_id": "SRC_004",
+            "source_name": "CARMF",
+            "source_full_name": "Caisse Autonome de Retraite des Médecins de France",
+            "source_reference": "Rapport annuel 2023 - Revenus des médecins libéraux",
+            "source_url": "https://www.carmf.fr/page.php?page=stats/revenus",
+            "data_used": "Revenu moyen brut des médecins libéraux",
+            "reliability": "HIGH",
+            "date": "2023"
+        }},
+        {{
+            "source_id": "SRC_005",
+            "source_name": "Doctolib",
+            "source_full_name": "Doctolib SAS",
+            "source_reference": "Page tarifs publique",
+            "source_url": "https://www.doctolib.fr/tarifs",
+            "data_used": "Tarification abonnement mensuel/annuel",
+            "reliability": "HIGH",
+            "date": "2024"
         }}
     ]
 }}
 
 🚨 RÈGLES STRICTES :
-1. Ne JAMAIS utiliser un prix France/US sans ajustement expliqué
-2. Chaque filtre doit être justifié ET sourcé (ou explicitement hypothétique)
-3. Le taux d'adoption doit être justifié par des benchmarks ou logique sectorielle
-4. Les écarts avec les références doivent être expliqués par : périmètre, maturité, régulation, modèle économique
+1. CHAQUE fact doit avoir une source nommée, datée et avec URL si disponible
+2. Les hypothèses doivent avoir un benchmark OU un rationale économique quantifié
+3. TOUJOURS fournir 3 scénarios de sensibilité (conservateur, central, optimiste)
+4. LIER explicitement la régulation aux hypothèses qu'elle impacte
+5. JUSTIFIER le périmètre choisi et lister les alternatives NON retenues
+6. Les écarts avec références doivent être expliqués (périmètre, maturité, régulation)
 
 Réponds UNIQUEMENT avec du JSON valide, aucun texte autour.
 """)

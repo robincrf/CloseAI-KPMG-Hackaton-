@@ -132,7 +132,7 @@ new_function_code = """
 # Search for: missing_facts_display = gr.HTML()
 # Replace/Append with sources_table = gr.Dataframe(...)
 
-layout_marker = """gr.Markdown("### ⚠️ Données Manquantes (To-Do)")
+layout_marker = """gr.Markdown("### Données Manquantes (To-Do)")
                         missing_facts_display = gr.HTML()"""
 
 new_layout_code = """gr.Markdown("### 📑 Centralisation des Faits & Sources")
