@@ -11,7 +11,7 @@ with open(file_path, 'r') as f:
 # 94:                     context_ticker = gr.Textbox(label="Ticker de Référence (Contexte)", value="", placeholder="Optionnel (ex: AAPL)", scale=2)
 # 95:                     btn_load_context = gr.Button("📂 Charger Facts & Stratégie", variant="secondary", scale=1)
 
-start_btn = content.find('btn_load_context = gr.Button("📂 Charger Facts & Stratégie"')
+start_btn = content.find('btn_load_context = gr.Button("Charger Facts & Stratégie"')
 if start_btn == -1:
     print("Could not find button definition")
     exit(1)
@@ -31,7 +31,7 @@ for i, line in enumerate(lines):
 if idx_btn != -1:
     # Check indentation
     indent = lines[idx_btn][:lines[idx_btn].find('btn_load_context')]
-    lines[idx_btn] = f'{indent}btn_load_context = gr.Button("📊 Charger Données Fin.", variant="secondary", scale=1)'
+    lines[idx_btn] = f'{indent}btn_load_context = gr.Button("Charger Données Fin.", variant="secondary", scale=1)'
     lines.insert(idx_btn + 1, f'{indent}btn_gen_strat = gr.Button("✨ Générer Matrices IA", variant="primary", scale=1)')
 else:
     print("Error locating button line via loop")

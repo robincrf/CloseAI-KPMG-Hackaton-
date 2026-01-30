@@ -712,7 +712,7 @@ def _get_source_annotation(facts: dict) -> dict:
     retrieved = facts.get("retrieved_at", datetime.now().isoformat())[:10] # Date YYYY-MM-DD
     
     return dict(
-        text=f"📊 Source: Yahoo Finance ({exchange}: {currency}) • Mis à jour: {retrieved}",
+        text=f" Source: Yahoo Finance ({exchange}: {currency}) • Mis à jour: {retrieved}",
         xref="paper", yref="paper",
         x=0, y=-1,  # Coin bas droite, DANS la zone visible
         showarrow=False,
@@ -1076,7 +1076,7 @@ def generate_swot_from_strategic_facts(strategic_data: dict, company: str) -> go
                 source_type = ""
             
             # Icône pour différencier les sources
-            icon = "📊" if is_financial else "💡"
+            icon = "" if is_financial else ""
             
             # Label de source pour le hover
             if is_financial:
@@ -1085,24 +1085,24 @@ def generate_swot_from_strategic_facts(strategic_data: dict, company: str) -> go
             else:
                 source_display = source_citation if source_citation != "financial" else "Non spécifiée"
                 type_icons = {
-                    "rapport_financier": "📄",
-                    "presse": "📰",
-                    "analyse_marche": "📊",
-                    "regulateur": "⚖️"
+                    "rapport_financier": "",
+                    "presse": "",
+                    "analyse_marche": "",
+                    "regulateur": ""
                 }
-                source_type_display = f"{type_icons.get(source_type, '🤖')} {source_type.replace('_', ' ').title()}" if source_type else "🤖 Analyse IA"
+                source_type_display = f"{type_icons.get(source_type, '')} {source_type.replace('_', ' ').title()}" if source_type else "Analyse IA"
             
             category_label = q["title"]
             
             # Source abrégée pour affichage direct
             if is_financial:
-                source_short = "📊 Yahoo Finance"
+                source_short = " Yahoo Finance"
             else:
                 # Tronquer la source si trop longue
                 if len(source_citation) > 25:
-                    source_short = f"📰 {source_citation[:22]}..."
+                    source_short = f"{source_citation[:22]}..."
                 else:
-                    source_short = f"📰 {source_citation}"
+                    source_short = f"{source_citation}"
             
             # Construction du Texte Affiché (contenu + source sur une ligne)
             if len(text_content) > 30:
@@ -1150,7 +1150,7 @@ def generate_swot_from_strategic_facts(strategic_data: dict, company: str) -> go
     ]
 
     # Annotation source
-    source_text = f"📊 Financier + 💡 IA | {strategic_data.get('ticker', 'N/A')} | {strategic_data.get('generated_at', '')[:10]}"
+    source_text = f"Financier + 💡 IA | {strategic_data.get('ticker', 'N/A')} | {strategic_data.get('generated_at', '')[:10]}"
     
     fig.update_layout(
         title=dict(text=f"<b>MATRICE SWOT : {company}</b>", font=dict(color="#FFFFFF", size=18)),
@@ -1218,10 +1218,10 @@ def generate_bcg_from_strategic_facts(strategic_data: dict, company: str) -> go.
         hover = (
             f"<b style='font-size:14px'>{name}</b><br>"
             f"<span style='color:#90a4ae'>━━━━━━━━━━━━━━━━━━━━━</span><br><br>"
-            f"<b>📊 Part de marché:</b> {ms*100:.0f}%<br>"
-            f"<b>📈 Croissance:</b> {growth*100:.0f}%<br>"
-            f"<b>🎯 Position:</b> {quadrant}<br><br>"
-            f"<b>📰 Source:</b> {source}<br>"
+            f"<b>Part de marché:</b> {ms*100:.0f}%<br>"
+            f"<b>Croissance:</b> {growth*100:.0f}%<br>"
+            f"<b>Position:</b> {quadrant}<br><br>"
+            f"<b>Source:</b> {source}<br>"
             f"<span style='color:#78909c; font-size:11px'>Entreprise: {company}</span>"
         )
         # Tronquer la source
@@ -1269,7 +1269,7 @@ def generate_bcg_from_strategic_facts(strategic_data: dict, company: str) -> go.
     fig.add_hline(y=0.5, line_width=1, line_dash="dash", line_color="gray")
     
     # Annotation source globale
-    source_text = f"🤖 IA: Mistral | 📊 Financier: {strategic_data.get('ticker', 'N/A')} | {strategic_data.get('generated_at', '')[:10]}"
+    source_text = f"IA: Mistral | Financier: {strategic_data.get('ticker', 'N/A')} | {strategic_data.get('generated_at', '')[:10]}"
     
     fig.update_layout(
         title=dict(text=f"<b>MATRICE BCG : {company}</b>", font=dict(color="#FFFFFF", size=18)),
@@ -1333,14 +1333,14 @@ def generate_pestel_from_strategic_facts(strategic_data: dict, company: str) -> 
     for i, (cat, score, detail, source) in enumerate(zip(categories, scores, details, sources)):
         # Icône par dimension
         cat_icons = {
-            "Politique": "🏛️",
-            "Economique": "💰",
-            "Societal": "👥",
-            "Technologique": "💻",
-            "Environnemental": "🌍",
-            "Legal": "⚖️"
+            "Politique": "",
+            "Economique": "",
+            "Societal": "",
+            "Technologique": "",
+            "Environnemental": "",
+            "Legal": ""
         }
-        icon = cat_icons.get(cat, "📊")
+        icon = cat_icons.get(cat, "")
         
         # Niveau de risque
         if score >= 8:
@@ -1378,10 +1378,10 @@ def generate_pestel_from_strategic_facts(strategic_data: dict, company: str) -> 
     ))
 
     # Créer une légende des sources en bas
-    sources_legend = "<br>".join([f"{cat_icons.get(cat, '📊')} {cat}: 📰 {src}" for cat, src in zip(categories, sources)])
+    sources_legend = "<br>".join([f"{cat_icons.get(cat, '')} {cat}: 📰 {src}" for cat, src in zip(categories, sources)])
     
     # Annotation source globale
-    source_text = f"🤖 IA: Mistral | 📊 Financier: {strategic_data.get('ticker', 'N/A')} | {strategic_data.get('generated_at', '')[:10]}"
+    source_text = f"IA: Mistral | Financier: {strategic_data.get('ticker', 'N/A')} | {strategic_data.get('generated_at', '')[:10]}"
 
     fig.update_layout(
         polar=dict(

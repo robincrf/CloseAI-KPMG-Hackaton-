@@ -163,13 +163,13 @@ class StrategicFactsService:
                 if margin > 15:
                     financial_swot["strengths"].append({
                         "item": f"Marge nette élevée ({margin:.1f}%)",
-                        "evidence": "📊 Donnée financière réelle",
+                        "evidence": "Donnée financière réelle",
                         "source": "financial"
                     })
                 elif margin < 5:
                     financial_swot["weaknesses"].append({
                         "item": f"Marge nette faible ({margin:.1f}%)",
-                        "evidence": "📊 Donnée financière réelle",
+                        "evidence": "Donnée financière réelle",
                         "source": "financial"
                     })
             except:
@@ -182,13 +182,13 @@ class StrategicFactsService:
                 if roe > 20:
                     financial_swot["strengths"].append({
                         "item": f"ROE excellent ({roe:.1f}%)",
-                        "evidence": "📊 Donnée financière réelle",
+                        "evidence": "Donnée financière réelle",
                         "source": "financial"
                     })
                 elif roe < 10:
                     financial_swot["weaknesses"].append({
                         "item": f"ROE en dessous des standards ({roe:.1f}%)",
-                        "evidence": "📊 Donnée financière réelle",
+                        "evidence": "Donnée financière réelle",
                         "source": "financial"
                     })
             except:
@@ -201,13 +201,13 @@ class StrategicFactsService:
                 if de_ratio > 2:
                     financial_swot["threats"].append({
                         "item": f"Endettement élevé (D/E: {de_ratio:.2f})",
-                        "evidence": "📊 Donnée financière réelle",
+                        "evidence": "Donnée financière réelle",
                         "source": "financial"
                     })
                 elif de_ratio < 0.5:
                     financial_swot["strengths"].append({
                         "item": f"Structure financière solide (D/E: {de_ratio:.2f})",
-                        "evidence": "📊 Donnée financière réelle",
+                        "evidence": "Donnée financière réelle",
                         "source": "financial"
                     })
             except:
@@ -220,13 +220,13 @@ class StrategicFactsService:
                 if fcf > 0:
                     financial_swot["opportunities"].append({
                         "item": f"Trésorerie disponible (FCF: ${fcf/1e9:.1f}B)",
-                        "evidence": "📊 Donnée financière réelle - Capacité d'investissement",
+                        "evidence": "Donnée financière réelle - Capacité d'investissement",
                         "source": "financial"
                     })
                 else:
                     financial_swot["threats"].append({
                         "item": f"FCF négatif (${fcf/1e9:.1f}B)",
-                        "evidence": "📊 Donnée financière réelle",
+                        "evidence": "Donnée financière réelle",
                         "source": "financial"
                     })
             except:
@@ -262,11 +262,11 @@ class StrategicFactsService:
         """
         # AJOUT VERSION v3 FORCE INVALIDATE + DEBUG PRINT
         cache_key = f"{company}_{ticker or 'no_ticker'}_v3"
-        print(f"🔍 [DEBUG V3] Requesting analysis for {company} (Key: {cache_key})")
+        print(f"[DEBUG V3] Requesting analysis for {company} (Key: {cache_key})")
         
         # Vérifier le cache
         if not force_refresh and cache_key in self._cache and self._is_cache_valid(cache_key):
-            print(f"📦 [STRATEGIC FACTS] Cache hit pour {company}")
+            print(f"[STRATEGIC FACTS] Cache hit pour {company}")
             return self._cache[cache_key]
         
         print(f"🔄 [STRATEGIC FACTS] Génération de l'analyse stratégique pour {company}...")
@@ -277,9 +277,9 @@ class StrategicFactsService:
             try:
                 facts = facts_service.get_company_facts(ticker)
                 financial_context = self._format_financial_context(facts)
-                print(f"   📊 Données financières {ticker} intégrées")
+                print(f"Données financières {ticker} intégrées")
             except Exception as e:
-                print(f"   ⚠️ Erreur récupération financière: {e}")
+                print(f"Erreur récupération financière: {e}")
         
         # Prompt unifié pour les 3 analyses avec sources obligatoires
         prompt = ChatPromptTemplate.from_template("""
@@ -392,10 +392,10 @@ Réponds UNIQUEMENT avec du JSON valide, aucun texte autour.
             return result
             
         except json.JSONDecodeError as e:
-            print(f"❌ [STRATEGIC FACTS] Erreur parsing JSON: {e}")
+            print(f"[STRATEGIC FACTS] Erreur parsing JSON: {e}")
             return self._empty_analysis(company, ticker, f"Erreur parsing: {e}")
         except Exception as e:
-            print(f"❌ [STRATEGIC FACTS] Erreur: {e}")
+            print(f"[STRATEGIC FACTS] Erreur: {e}")
             return self._empty_analysis(company, ticker, str(e))
     
     def _empty_analysis(self, company: str, ticker: Optional[str], error: str) -> Dict[str, Any]:
@@ -1619,5 +1619,410 @@ Réponds UNIQUEMENT avec du JSON valide, aucun texte autour.
         return facts
 
 
+    # =========================================================================
+    # COMPETITIVE ANALYSIS - Dynamic Facts-First Intelligence
+    # =========================================================================
+    def generate_competitive_analysis(
+        self, 
+        company_name: str, 
+        country: str, 
+        year: str, 
+        market_sizing_context: str = "",
+        segmentation_context: str = ""
+    ) -> Dict[str, Any]:
+        """
+        ANALYSE CONCURRENTIELLE DYNAMIQUE - Facts-First Protocol
+        
+        Génère une analyse concurrentielle complète en s'appuyant sur :
+        1. Le contexte utilisateur (entreprise, pays, année)
+        2. Les résultats du Market Sizing (si disponibles)
+        3. Les résultats de la Segmentation Entreprises (si disponibles)
+        
+        Blocs générés :
+        - Bloc 1: Cartographie des acteurs
+        - Bloc 2: Benchmark des offres
+        - Bloc 3: Positionnement & clusters
+        - Bloc 4: Lecture de la demande (gaps)
+        - Bloc 5: Recommandation stratégique
+        
+        Returns:
+            Analyse structurée avec traçabilité des sources
+        """
+        print(f"\n{'='*60}")
+        print(f"🎯 [COMPETITIVE ANALYSIS] Lancement pour {company_name} ({country}, {year})")
+        print(f"{'='*60}")
+        
+        llm = self._get_llm()
+        
+        # Build context from dependencies
+        sizing_info = market_sizing_context if market_sizing_context else "Aucun market sizing disponible."
+        segmentation_info = segmentation_context if segmentation_context else "Aucune segmentation disponible."
+        
+        prompt_template = ChatPromptTemplate.from_messages([
+            ("system", """Tu es un expert en intelligence concurrentielle et stratégie d'entreprise.
+Tu dois produire une analyse concurrentielle STRUCTURÉE et FACTUELLE pour une entreprise donnée.
+
+RÈGLES ABSOLUES:
+1. Ne jamais inventer de données chiffrées sans source.
+2. Distinguer clairement: FAIT CONFIRMÉ vs DÉCLARÉ vs SUPPOSÉ.
+3. Être conservateur sur les estimations de revenus (ordres de grandeur uniquement).
+4. Identifier les GAPS réels (besoins non couverts), pas le marketing.
+5. La recommandation doit être TRAÇABLE (basée sur les gaps et le positionnement).
+
+CONTEXTE DISPONIBLE:
+- Market Sizing: {sizing_context}
+- Segmentation Entreprises: {segmentation_context}
+
+FORMAT DE SORTIE: JSON STRICT (pas de texte avant/après)."""),
+            ("human", """Génère une analyse concurrentielle complète pour:
+- Entreprise de référence: {company}
+- Pays/Marché: {country}
+- Année: {year}
+
+Structure JSON attendue:
+{{
+  "context_summary": {{
+    "reference_company": "{company}",
+    "market_scope": "description courte du périmètre",
+    "analysis_date": "{year}"
+  }},
+  "actors": [
+    {{
+      "name": "Nom de l'acteur",
+      "typology": "Leader|Challenger|Niche|Emergent",
+      "geography": "Local|Régional|Global",
+      "revenue_order": "< 10M€|10-50M€|50-200M€|200M-1B€|> 1B€",
+      "core_offering": "Description courte de l'offre principale",
+      "source": "D'où vient cette information",
+      "confidence": "high|medium|low"
+    }}
+  ],
+  "offerings_benchmark": {{
+    "key_features": ["Feature 1", "Feature 2", "Feature 3", "Feature 4", "Feature 5"],
+    "matrix": [
+      {{
+        "actor": "Nom",
+        "features": {{
+          "Feature 1": {{"status": "confirmed|declared|absent", "notes": "détail optionnel"}},
+          "Feature 2": {{"status": "confirmed|declared|absent", "notes": ""}}
+        }}
+      }}
+    ]
+  }},
+  "positioning_clusters": [
+    {{
+      "actor": "Nom",
+      "claimed_value": "Proposition de valeur déclarée",
+      "cluster": "Cost Leader|Premium|Innovator|Service-Centric|Generalist",
+      "integration_level": "Verticale|Horizontale|Spécialisée",
+      "economic_model": "SaaS|License|Usage|Hybrid"
+    }}
+  ],
+  "market_expectations": [
+    {{
+      "criterion": "Besoin/Attente du marché",
+      "importance": "Critical|High|Medium|Low",
+      "coverage": "met|partial|unmet",
+      "gap_signal": true/false,
+      "explanation": "Pourquoi ce statut"
+    }}
+  ],
+  "recommendation": {{
+    "strategy_title": "Titre de la recommandation (ex: Cibler le segment X)",
+    "rationale": "Explication de pourquoi cette stratégie",
+    "avoid": "Ce qu'il faut éviter et pourquoi",
+    "alternative_considered": "Alternative envisagée mais rejetée",
+    "alternative_rejection_reason": "Pourquoi l'alternative n'est pas optimale",
+    "confidence": "HIGH|MEDIUM|LOW",
+    "key_assumptions": ["Hypothèse 1", "Hypothèse 2"]
+  }},
+  "reliability": {{
+    "overall_confidence": "HIGH|MEDIUM|LOW",
+    "data_sources_count": N,
+    "primary_sources": ["Source 1", "Source 2"],
+    "key_limitations": ["Limitation 1", "Limitation 2"],
+    "data_freshness": "Description de la fraîcheur des données"
+  }}
+}}
+
+Génère 4-6 acteurs pertinents pour ce marché.
+Identifie 4-6 attentes marché dont au moins 2 gaps (coverage=unmet ou partial).""")
+        ])
+        
+        try:
+            chain = prompt_template | llm
+            response = chain.invoke({
+                "company": company_name,
+                "country": country,
+                "year": year,
+                "sizing_context": sizing_info,
+                "segmentation_context": segmentation_info
+            })
+            
+            raw_content = response.content.strip()
+            print(f"📥 [COMPETITIVE ANALYSIS] Réponse LLM reçue ({len(raw_content)} chars)")
+            
+            # JSON Extraction
+            if "```json" in raw_content:
+                raw_content = raw_content.split("```json")[1].split("```")[0].strip()
+            elif "```" in raw_content:
+                raw_content = raw_content.split("```")[1].split("```")[0].strip()
+            
+            analysis = json.loads(raw_content)
+            print(f"✅ [COMPETITIVE ANALYSIS] Parsing JSON réussi")
+            
+            # Convert to facts for traceability
+            facts = self._convert_competitive_analysis_to_facts(analysis, company_name, country, year)
+            
+            return {
+                "success": True,
+                "analysis": analysis,
+                "facts": facts,
+                "metadata": {
+                    "company": company_name,
+                    "country": country,
+                    "year": year,
+                    "generated_at": datetime.now().isoformat(),
+                    "method": "LLM-Dynamic"
+                }
+            }
+            
+        except json.JSONDecodeError as e:
+            print(f"❌ [COMPETITIVE ANALYSIS] Erreur parsing JSON: {e}")
+            return {"success": False, "error": f"Parsing error: {e}", "facts": []}
+        except Exception as e:
+            print(f"❌ [COMPETITIVE ANALYSIS] Erreur: {e}")
+            import traceback
+            traceback.print_exc()
+            return {"success": False, "error": str(e), "facts": []}
+    
+    def _convert_competitive_analysis_to_facts(self, analysis: Dict, company: str, country: str, year: str) -> List[Dict]:
+        """Convertit l'analyse concurrentielle en facts structurés pour traçabilité."""
+        facts = []
+        ts = int(datetime.now().timestamp())
+        
+        # 1. Facts des acteurs
+        for actor in analysis.get("actors", []):
+            facts.append({
+                "id": f"comp_actor_{actor.get('name', '').replace(' ', '_').lower()}_{ts}",
+                "category": "competition",
+                "key": f"competitor_{actor.get('name', '').replace(' ', '_').lower()}",
+                "value": actor.get("typology", "Unknown"),
+                "unit": "",
+                "source": actor.get("source", "LLM Analysis"),
+                "source_type": "Secondaire",
+                "confidence": actor.get("confidence", "medium"),
+                "notes": f"Geo: {actor.get('geography', 'N/A')}, Revenue: {actor.get('revenue_order', 'N/A')}, Core: {actor.get('core_offering', 'N/A')}"
+            })
+        
+        # 2. Facts des gaps marché
+        for exp in analysis.get("market_expectations", []):
+            if exp.get("gap_signal"):
+                facts.append({
+                    "id": f"comp_gap_{exp.get('criterion', '').replace(' ', '_').lower()}_{ts}",
+                    "category": "competition",
+                    "key": f"market_gap_{exp.get('criterion', '').replace(' ', '_').lower()}",
+                    "value": exp.get("coverage", "unknown"),
+                    "unit": "",
+                    "source": "Market Analysis",
+                    "source_type": "Analyse",
+                    "confidence": "medium",
+                    "notes": f"Importance: {exp.get('importance', 'N/A')}, Explication: {exp.get('explanation', 'N/A')}"
+                })
+        
+        # 3. Fact de la recommandation
+        rec = analysis.get("recommendation", {})
+        if rec.get("strategy_title"):
+            facts.append({
+                "id": f"comp_recommendation_{company.replace(' ', '_').lower()}_{ts}",
+                "category": "competition",
+                "key": "strategic_recommendation",
+                "value": rec.get("strategy_title", "N/A"),
+                "unit": "",
+                "source": "Strategic Analysis",
+                "source_type": "Analyse",
+                "confidence": rec.get("confidence", "medium").lower(),
+                "notes": f"Rationale: {rec.get('rationale', 'N/A')[:100]}..."
+            })
+        
+        return facts
+
+
+    # =========================================================================
+    # MARKET TRENDS ANALYSIS - Tendances clés du marché
+    # =========================================================================
+    def generate_market_trends(
+        self, 
+        company_name: str, 
+        country: str, 
+        year: str, 
+        market_sizing_context: str = "",
+        segmentation_context: str = "",
+        competitive_context: str = ""
+    ) -> Dict[str, Any]:
+        """
+        ANALYSE DES TENDANCES DU MARCHÉ - KPMG Consultant Methodology
+        
+        Produit 5-7 tendances clés du marché pour l'horizon 2-5 ans.
+        Approche neutre et analytique, pas de recommandations.
+        
+        Pour chaque tendance:
+        - Intitulé clair et non marketing
+        - Description factuelle 3-4 lignes max
+        - Driver principal (tech, réglementaire, économique, comportemental, ESG)
+        - Maturité (émergente, en accélération, mature)
+        - Horizon (court/moyen/long terme)
+        - Type (structurelle vs conjoncturelle)
+        
+        Returns:
+            Analyse structurée des tendances avec signaux faibles et incertitudes
+        """
+        print(f"\n{'='*60}")
+        print(f"📈 [MARKET TRENDS] Analyse des tendances pour {company_name} ({country}, {year})")
+        print(f"{'='*60}")
+        
+        llm = self._get_llm()
+        
+        # Build context
+        sizing_info = market_sizing_context if market_sizing_context else "Aucun market sizing disponible."
+        seg_info = segmentation_context if segmentation_context else "Aucune segmentation disponible."
+        comp_info = competitive_context if competitive_context else "Aucune analyse concurrentielle disponible."
+        
+        prompt_template = ChatPromptTemplate.from_messages([
+            ("system", """Tu es un consultant senior en stratégie chez KPMG.
+Tu dois produire une analyse des TENDANCES DU MARCHÉ pour un comité de direction.
+
+RÈGLES ABSOLUES:
+1. AUCUNE RECOMMANDATION - tu décris le marché, tu ne conseilles pas.
+2. Approche neutre et analytique.
+3. Données sourcées et datées quand possible.
+4. Si information incertaine → le signaler explicitement.
+5. Ne PAS répéter les éléments du sizing ou de la concurrence.
+6. Distinguer tendances STRUCTURELLES (fond de marché) vs CONJONCTURELLES (cycle, macro).
+
+CONTEXTE DISPONIBLE:
+- Market Sizing: {sizing_context}
+- Segmentation: {segmentation_context}
+- Analyse Concurrentielle: {competitive_context}
+
+FORMAT DE SORTIE: JSON STRICT (pas de texte avant/après)."""),
+            ("human", """Génère une analyse des tendances clés du marché pour:
+- Entreprise de référence: {company}
+- Pays/Marché: {country}
+- Année: {year}
+
+Structure JSON attendue:
+{{
+  "context": {{
+    "market_scope": "Description concise du périmètre de marché analysé",
+    "analysis_horizon": "2-5 ans",
+    "reference_date": "{year}"
+  }},
+  
+  "market_trends": [
+    {{
+      "trend_id": "TREND_001",
+      "title": "Intitulé clair et non marketing (ex: Consolidation des acteurs B2B)",
+      "description": "Description factuelle et synthétique en 3-4 lignes maximum. Données chiffrées si disponibles.",
+      "driver": "technologique|réglementaire|économique|comportemental|ESG",
+      "driver_detail": "Précision sur le driver (ex: IA générative, RGPD, inflation...)",
+      "maturity": "émergente|en accélération|mature",
+      "horizon": "court terme (0-2 ans)|moyen terme (2-5 ans)|long terme (5+ ans)",
+      "type": "structurelle|conjoncturelle",
+      "is_weak_signal": false,
+      "uncertainty_level": "faible|moyen|élevé",
+      "uncertainty_reason": "Raison de l'incertitude si niveau moyen ou élevé",
+      "sources": ["Source 1 (date)", "Source 2 (date)"],
+      "geographic_scope": "Local ({country})|Européen|Global"
+    }}
+  ],
+  
+  "weak_signals": [
+    {{
+      "signal_id": "SIGNAL_001",
+      "signal": "Description du signal faible détecté",
+      "potential_impact": "Impact potentiel si le signal se confirme",
+      "monitoring_indicators": ["Indicateur 1 à surveiller", "Indicateur 2"],
+      "emergence_timeline": "6-12 mois|1-2 ans|2-3 ans"
+    }}
+  ],
+  
+  "market_debates": [
+    {{
+      "debate_id": "DEBATE_001",
+      "topic": "Zone d'incertitude ou de débat sur le marché",
+      "position_a": "Position ou scénario A",
+      "position_b": "Position ou scénario B",
+      "consensus_level": "aucun|émergent|fort",
+      "key_uncertainties": ["Incertitude qui départagera les positions"]
+    }}
+  ],
+  
+  "structural_vs_cyclical_summary": {{
+    "structural_trends_count": N,
+    "cyclical_trends_count": M,
+    "dominant_drivers": ["Driver 1", "Driver 2"],
+    "market_maturity_assessment": "Description de la maturité globale du marché"
+  }},
+  
+  "reliability": {{
+    "overall_confidence": "HIGH|MEDIUM|LOW",
+    "data_freshness": "Description de la fraîcheur des données",
+    "geographic_coverage": "Niveau de couverture géographique des sources",
+    "key_limitations": ["Limitation 1", "Limitation 2"]
+  }}
+}}
+
+Génère 5-7 tendances clés pertinentes pour l'horizon 2-5 ans.
+Identifie 1-3 signaux faibles.
+Mentionne 1-2 zones d'incertitude ou débats du marché.""")
+        ])
+        
+        try:
+            chain = prompt_template | llm
+            response = chain.invoke({
+                "company": company_name,
+                "country": country,
+                "year": year,
+                "sizing_context": sizing_info,
+                "segmentation_context": seg_info,
+                "competitive_context": comp_info
+            })
+            
+            raw_content = response.content.strip()
+            print(f"📥 [MARKET TRENDS] Réponse LLM reçue ({len(raw_content)} chars)")
+            
+            # JSON Extraction
+            if "```json" in raw_content:
+                raw_content = raw_content.split("```json")[1].split("```")[0].strip()
+            elif "```" in raw_content:
+                raw_content = raw_content.split("```")[1].split("```")[0].strip()
+            
+            analysis = json.loads(raw_content)
+            print(f"✅ [MARKET TRENDS] Parsing JSON réussi - {len(analysis.get('market_trends', []))} tendances")
+            
+            return {
+                "success": True,
+                "analysis": analysis,
+                "metadata": {
+                    "company": company_name,
+                    "country": country,
+                    "year": year,
+                    "generated_at": datetime.now().isoformat(),
+                    "method": "LLM-KPMG-Trends"
+                }
+            }
+            
+        except json.JSONDecodeError as e:
+            print(f"❌ [MARKET TRENDS] Erreur parsing JSON: {e}")
+            return {"success": False, "error": f"Parsing error: {e}"}
+        except Exception as e:
+            print(f"❌ [MARKET TRENDS] Erreur: {e}")
+            import traceback
+            traceback.print_exc()
+            return {"success": False, "error": str(e)}
+
+
 # Singleton global pour l'application
 strategic_facts_service = StrategicFactsService()
+

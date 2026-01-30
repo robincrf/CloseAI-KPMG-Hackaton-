@@ -18,30 +18,27 @@ def launch_dashboard(rag_stream_function):
     Lance le tableau de bord KPMG Market Sizer.
     """
     
-    # Thème KPMG
+    # Sober Consulting Theme
     theme = gr.themes.Soft(
-        primary_hue="blue",
-        secondary_hue="cyan",
+        primary_hue="slate",
+        secondary_hue="slate",
         neutral_hue="slate",
     ).set(
-        body_background_fill="#121212", 
-        body_text_color="#E0E0E0",
-        block_background_fill="#1E1E1E",
+        body_background_fill="#0F172A",
+        block_background_fill="#1E293B",
         block_border_width="1px",
-        block_border_color="rgba(255, 255, 255, 0.1)",
-        block_label_text_color="#0091DA",
-        input_background_fill="#262626",
-        button_primary_background_fill="#00338D",
-        button_primary_text_color="white",
-        button_secondary_background_fill="#262626",
-        button_secondary_text_color="#0091DA",
-        button_secondary_border_color="#0091DA",
-        slider_color="#0091DA"
+        block_border_color="#334155",
+        block_label_text_color="#94A3B8",
+        input_background_fill="#0F172A",
+        button_primary_background_fill="#334155", 
+        button_primary_text_color="#F8FAFC",
+        button_secondary_background_fill="#0F172A",
+        slider_color="#64748B"
     )
 
     custom_css = """
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
-    body, gradio-app { font-family: 'Inter', sans-serif !important; }
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+    body, gradio-app { font-family: 'Inter', sans-serif !important; background-color: #0F172A; }
     .header-container {
         display: flex; align-items: center; justify-content: space-between;
         padding: 1.5rem; background: linear-gradient(90deg, #00338D 0%, #001E55 100%);
@@ -50,103 +47,38 @@ def launch_dashboard(rag_stream_function):
     .header-title { color: white; font-size: 1.8rem; font-weight: 700; }
     .header-subtitle { color: #0091DA; font-size: 1rem; font-weight: 500; }
     
-    /* NEW: FACTS ACCORDION STYLE */
-    details.fact-details {
-        background: #1E1E1E; border: 1px solid rgba(255, 255, 255, 0.1);
-        border-radius: 8px; margin-bottom: 10px; overflow: hidden;
-        transition: all 0.2s ease;
-    }
-    details.fact-details:hover { border-color: #0091DA; }
-    details.fact-details[open] { border-color: #0091DA; background: #232323; }
-    
-    summary.fact-summary {
-        padding: 12px 15px; cursor: pointer; list-style: none;
-        display: flex; align-items: center; justify-content: space-between;
-        font-weight: 600; color: #E0E0E0;
-    }
+    details.fact-details { background: transparent; border: 1px solid #334155; border-radius: 6px; margin-bottom: 8px; }
+    summary.fact-summary { padding: 10px 15px; cursor: pointer; color: #E2E8F0; font-weight: 500; list-style: none; display: flex; justify-content: space-between; }
     summary.fact-summary::-webkit-details-marker { display: none; }
+    .fact-content { padding: 15px; border-top: 1px solid #334155; color: #CBD5E1; font-size: 0.9em; }
     
-    .fact-value-badge {
-        background: rgba(0, 145, 218, 0.2); color: #0091DA;
-        padding: 4px 8px; border-radius: 4px; font-family: monospace;
-    }
+    .segment-card, .actor-card, .gap-card, .axis-card { background: #1E293B; border: 1px solid #334155; border-radius: 6px; padding: 15px; transition: border-color 0.2s; }
+    .segment-card:hover, .actor-card:hover { border-color: #64748B; }
+    .segment-grid, .actor-grid, .gap-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 15px; margin-top: 15px; }
     
-    .fact-content {
-        padding: 15px; border-top: 1px solid rgba(255, 255, 255, 0.05);
-        display: flex; color: #B0B0B0; font-size: 0.9rem;
-    }
-    .fact-explanation { flex: 2; padding-right: 20px; border-right: 1px solid rgba(255,255,255,0.1); }
-    .fact-metadata { flex: 1; padding-left: 20px; display: flex; flex-direction: column; gap: 5px; }
+    .card-badge, .source-badge { font-size: 0.75em; padding: 1px 6px; border-radius: 4px; border: 1px solid #475569; color: #94A3B8; text-transform: uppercase; }
+    .typology-leader { color: #4ADE80; font-weight: 600; }
+    .typology-challenger { color: #60A5FA; font-weight: 600; }
+    .typology-niche { color: #A3A3A3; font-weight: 600; }
     
-    .meta-row { display: flex; justify-content: space-between; font-size: 0.8em; }
-    .meta-label { opacity: 0.6; }
-    .meta-val { font-weight: 600; color: white; text-align: right; }
-
-    /* NEW: SEGMENT CARDS STYLE */
-    .segment-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-        gap: 20px;
-        margin-top: 15px;
-    }
-    .segment-card {
-        background: #1E1E1E;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        border-radius: 12px;
-        overflow: hidden;
-        transition: transform 0.2s, box-shadow 0.2s;
-        display: flex;
-        flex-direction: column;
-        height: 100%;
-    }
-    .segment-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
-        border-color: rgba(255, 255, 255, 0.2);
-    }
-    .card-header {
-        padding: 15px;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        background: rgba(255, 255, 255, 0.02);
-    }
-    .card-title {
-        font-weight: 700;
-        font-size: 1.1em;
-        color: white;
-        margin-bottom: 4px;
-    }
-    .card-badge {
-        font-size: 0.7em;
-        padding: 2px 8px;
-        border-radius: 10px;
-        background: rgba(255, 255, 255, 0.1);
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    }
-    .card-body {
-        padding: 15px;
-        flex-grow: 1;
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
-    }
-    .card-metric {
-        background: rgba(0, 0, 0, 0.2);
-        padding: 8px 12px;
-        border-radius: 8px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin: 10px 0;
-    }
-    .metric-value {
-        font-weight: 800;
-        font-size: 1.1em;
-    }
-
+    .offerings-matrix { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    .offerings-matrix th { text-align: center; color: #94A3B8; padding: 8px; font-weight: 500; border-bottom: 1px solid #334155; }
+    .offerings-matrix td { text-align: center; padding: 8px; border-bottom: 1px solid #1E293B; color: #E2E8F0; }
+    .feat-confirmed { color: #4ADE80; }
+    .feat-declared { color: #FBBF24; }
+    .feat-absent { color: #EF4444; opacity: 0.5; }
+    
+    .gap-met { border-left: 3px solid #4ADE80; }
+    .gap-partial { border-left: 3px solid #FBBF24; }
+    .gap-unmet { border-left: 3px solid #EF4444; }
+    
+    .source-list { display: flex; flex-direction: column; gap: 8px; }
+    .source-item { padding: 10px; border-bottom: 1px solid #334155; }
+    
+    .check-list { display: flex; flex-direction: column; gap: 5px; }
+    .check-item { display: flex; justify-content: space-between; padding: 8px; border-radius: 4px; }
+    .check-item.ok { color: #4ADE80; }
+    .check-item.warn { color: #FBBF24; }
     """
 
     with gr.Blocks(title="KPMG Market Sizer") as demo:
@@ -162,75 +94,94 @@ def launch_dashboard(rag_stream_function):
         </div>
         """)
         
+        # ═══════════════════════════════════════════════════════════════════════
+        # GLOBAL CONTEXT STATES - Shared between tabs
+        # ═══════════════════════════════════════════════════════════════════════
+        state_company = gr.State(value="")
+        state_country = gr.State(value="France")
+        state_year = gr.State(value="2025")
+        state_context = gr.State(value="")  # Additional context / offerings
+        state_sizing_summary = gr.State(value="")  # Summary for downstream modules
+        state_seg_summary = gr.State(value="")  # Segmentation summary for Competitive Analysis
+        
         with gr.Tabs():
             
-            # ─── ONGLET 1 : MARKET SIZING CONTEXTUEL (NOUVELLE MÉTHODOLOGIE) ───
-            with gr.Tab("📊 Market Sizing Contextuel"):
+            # ─── ONGLET 1 : ASSISTANT (FIRST TAB) ───
+            with gr.Tab("Assistant"):
+                gr.Markdown("### Assistant méthodologique")
                 gr.Markdown("""
-                ### 🎓 Estimation de Marché Contextuelle
+                **Bienvenue dans KPMG Market Sizer.**
                 
-                > **Méthodologie rigoureuse** : On part d'une entreprise cible, d'un pays et d'une année pour reconstruire
-                > le marché de façon bottom-up, avec des facts locaux traçables et des hypothèses explicites.
+                Je suis votre assistant dédié à l'analyse stratégique. Je peux vous aider à :
+                - Comprendre la méthodologie d'estimation de marché
+                - Expliquer les sources et hypothèses utilisées
+                - Interpréter les résultats de segmentation ou d'analyse concurrentielle
+                
+                *Posez-moi vos questions ci-dessous.*
                 """)
+                with gr.Row():
+                    with gr.Column():
+                        gr.ChatInterface(fn=rag_stream_function)
+            
+            # ─── ONGLET 2 : MARKET SIZING ───
+            with gr.Tab("Taille de marché"):
                 
-                # SECTION 1: VERROUILLAGE DU CONTEXTE
+                # SECTION 1: PARAMÈTRES
+                gr.Markdown("### Paramètres de l'analyse")
+                
+                with gr.Row():
+                    ctx_company = gr.Textbox(
+                        label="Entreprise Cible",
+                        placeholder="ex: Doctolib, Alan, Qonto...",
+                        value=""
+                    )
+                    ctx_country = gr.Dropdown(
+                        choices=["France", "Allemagne", "Pologne", "Espagne", "Italie", "Royaume-Uni", "États-Unis", "Brésil", "Japon"],
+                        label="Pays / Zone",
+                        value="France",
+                        allow_custom_value=True
+                    )
+                    ctx_year = gr.Dropdown(
+                        choices=["2024", "2025", "2026", "2027", "2028"],
+                        label="Année",
+                        value="2025",
+                        allow_custom_value=True
+                    )
+                
+                with gr.Row():
+                    ctx_additional = gr.Textbox(
+                        label="Contexte Additionnel",
+                        placeholder="Précisions sur l'offre, le modèle économique ou le secteur...",
+                        lines=1,
+                        value="",
+                        scale=3
+                    )
+                    
+                    btn_run_sizing = gr.Button("Calculer l'estimation", variant="primary", scale=1)
+                
+                # RÉSULTAT (AFFICHÉ EN HAUT)
+                gr.Markdown("### Résultat de l'Estimation")
                 with gr.Row():
                     with gr.Column(scale=2):
-                        gr.Markdown("##### 1️⃣ Verrouillage du Contexte (Obligatoire)")
-                        with gr.Row():
-                            ctx_company = gr.Textbox(
-                                label="🏢 Entreprise Cible",
-                                placeholder="ex: Doctolib, Alan, Qonto...",
-                                value=""
-                            )
-                            ctx_country = gr.Dropdown(
-                                choices=["France", "Allemagne", "Pologne", "Espagne", "Italie", "Royaume-Uni", "États-Unis", "Brésil", "Japon"],
-                                label="🌍 Pays / Zone",
-                                value="France",
-                                allow_custom_value=True
-                            )
-                            ctx_year = gr.Dropdown(
-                                choices=["2024", "2025", "2026", "2027", "2028"],
-                                label="📅 Année",
-                                value="2025",
-                                allow_custom_value=True
-                            )
-                        
-                        ctx_additional = gr.Textbox(
-                            label="📝 Contexte Additionnel (offres, modèle éco, secteur...)",
-                            placeholder="ex: SaaS B2B, téléconsultation médicale, prise de RDV...",
-                            lines=2,
-                            value=""
-                        )
-                        
-                        btn_run_sizing = gr.Button("🚀 Lancer l'Estimation Bottom-Up", variant="primary")
-                    
+                        out_final_result = gr.HTML()
                     with gr.Column(scale=1):
-                        gr.Markdown("""
-                        ##### 📋 Cette analyse va produire :
-                        - ✅ Verrouillage du contexte
-                        - ✅ Définition du marché spécifique
-                        - ✅ Facts locaux traçables
-                        - ✅ Reconstruction bottom-up
-                        - ✅ Calcul explicite
-                        - ✅ Validation par sanity checks
-                        - ✅ Évaluation de fiabilité
-                        """)
+                        out_reliability = gr.HTML()
                 
                 # SECTION 2: CONTEXTE VERROUILLÉ
-                with gr.Accordion("📌 1. Contexte Verrouillé", open=True):
+                with gr.Accordion("1. Contexte verrouillé", open=True):
                     out_context_lock = gr.HTML()
                 
                 # SECTION 3: DÉFINITION DU MARCHÉ
-                with gr.Accordion("🎯 2. Définition du Marché Contextuel", open=True):
+                with gr.Accordion("2. Définition du marché", open=True):
                     out_market_definition = gr.HTML()
                 
-                # SECTION 4: FACTS UTILISÉS
-                with gr.Accordion("📚 3. Facts Locaux Mobilisés", open=True):
-                    out_facts_local = gr.Dataframe(label="Registre des Facts", interactive=False)
+                # SECTION 4: FACTS UTILISÉS (REMPLACEMENT UX)
+                with gr.Accordion("3. Facts Locaux Mobilisés", open=True):
+                    # REMPLACÉ: gr.Dataframe
+                    out_facts_registry = gr.HTML(label="Registre des Facts")
                 
                 # SECTION 5: RECONSTRUCTION BOTTOM-UP
-                with gr.Accordion("🔧 4. Reconstruction Bottom-Up Locale", open=True):
+                with gr.Accordion("4. Reconstruction Bottom-Up Locale", open=True):
                     with gr.Row():
                         with gr.Column():
                             out_economic_unit = gr.HTML(label="Unité Économique")
@@ -243,31 +194,28 @@ def launch_dashboard(rag_stream_function):
                             out_adoption_rate = gr.HTML(label="Taux d'Adoption")
                 
                 # SECTION 6: CALCUL
-                with gr.Accordion("🧮 5. Calcul Explicite", open=True):
+                with gr.Accordion("5. Calcul Explicite", open=True):
                     out_calculation = gr.HTML()
                 
-                # SECTION 7: VALIDATION
-                with gr.Accordion("✅ 6. Validation & Sanity Checks", open=True):
-                    out_validation = gr.Dataframe(label="Comparaisons", interactive=False)
+                # SECTION 7: VALIDATION (REMPLACEMENT UX)
+                with gr.Accordion("6. Contrôle de cohérence", open=True):
+                    # REMPLACÉ: gr.Dataframe
+                    out_validation_checklist = gr.HTML(label="Checklist de Cohérence")
                 
-                # SECTION 8: RÉSULTAT FINAL
-                gr.Markdown("### 🏁 Résultat de l'Estimation")
-                with gr.Row():
-                    with gr.Column(scale=2):
-                        out_final_result = gr.HTML()
-                    with gr.Column(scale=1):
-                        out_reliability = gr.HTML()
+
                 
-                # SECTION 9: SOURCES
-                with gr.Accordion("📑 7. Registre des Sources", open=False):
-                    out_sources_registry = gr.Dataframe(label="Sources", interactive=False)
+                # SECTION 9: SOURCES (REMPLACEMENT UX)
+                with gr.Accordion("7. Registre des Sources", open=False):
+                    # REMPLACÉ: gr.Dataframe
+                    out_sources_list = gr.HTML(label="Sources & Traçabilité")
                 
                 # HANDLER
                 def run_contextual_sizing(company, country, year, additional):
                     if not company.strip():
                         return (
-                            "<div style='color:#FF5252; padding:20px;'>⚠️ Veuillez entrer un nom d'entreprise.</div>",
-                            "", "", None, "", "", "", "", "", "", None, None
+                            "<div style='color:#FF5252; padding:20px;'>Veuillez entrer un nom d'entreprise.</div>",
+                            "", "", "", "", "", "", "", "", "", "", "",
+                            "", "France", "2025", "", ""  # States unchanged on error
                         )
                     
                     from strategic_facts_service import strategic_facts_service
@@ -281,8 +229,9 @@ def launch_dashboard(rag_stream_function):
                     if not result.get("success"):
                         error_msg = result.get("error", "Erreur inconnue")
                         return (
-                            f"<div style='color:#FF5252; padding:20px;'>❌ Erreur : {error_msg}</div>",
-                            "", "", None, "", "", "", "", "", "", None, None
+                            f"<div style='color:#FF5252; padding:20px;'>Erreur : {error_msg}</div>",
+                            "", "", "", "", "", "", "", "", "", "", "",
+                            "", "France", "2025", "", ""  # States unchanged on error
                         )
                     
                     analysis = result.get("analysis", {})
@@ -298,7 +247,7 @@ def launch_dashboard(rag_stream_function):
                             <div><span style="opacity: 0.7;">Modèle Local:</span> <b>{ctx.get('local_business_model', 'N/A')[:50]}...</b></div>
                         </div>
                         <div style="margin-top: 10px;"><span style="opacity: 0.7;">Offres pertinentes:</span> {', '.join(ctx.get('company_offerings', []))}</div>
-                        {"<div style='color: #FFAB00; margin-top: 10px;'>⚠️ Infos manquantes: " + ', '.join(ctx.get('missing_info', [])) + "</div>" if ctx.get('missing_info') else ""}
+                        {"<div style='color: #FFAB00; margin-top: 10px;'>Infos manquantes: " + ', '.join(ctx.get('missing_info', [])) + "</div>" if ctx.get('missing_info') else ""}
                     </div>
                     """
                     
@@ -327,9 +276,27 @@ def launch_dashboard(rag_stream_function):
                     </div>
                     """
                     
-                    # 3. FACTS TABLE
+                    # 3. FACTS HTML
                     facts_data = analysis.get("facts_used", [])
-                    df_facts = pd.DataFrame(facts_data) if facts_data else pd.DataFrame()
+                    facts_html = "<div class='source-list'>"
+                    for f in facts_data:
+                        # Determine badge style
+                        src_type = f.get("source_type", "N/A").lower()
+                        badge_class = "primary" if "primary" in src_type or "report" in src_type else "secondary"
+                        
+                        facts_html += f"""
+                        <div class="source-item">
+                            <div class="source-header">
+                                <span class="source-badge {badge_class}">{f.get('source_type', 'Autre').upper()}</span>
+                                <span>Confiance: <b style="color:{'#00C853' if f.get('confidence')=='high' else '#FFAB00'}">{f.get('confidence', 'medium').upper()}</b></span>
+                            </div>
+                            <div style="font-weight: bold; margin: 4px 0; color: #E0E0E0;">{f.get('key', 'Fact').replace('_', ' ').capitalize()}</div>
+                            <div style="font-size: 1.1em; color: white;">{f.get('value', 'N/A')} <span style="font-size:0.8em; opacity:0.7">{f.get('unit', '')}</span></div>
+                            <div style="font-size: 0.85em; opacity: 0.7; margin-top: 5px;"><i>Source: {f.get('source', 'Inconnue')}</i></div>
+                            <div style="font-size: 0.8em; color: #B0B0B0; margin-top: 2px;">{f.get('notes', '')}</div>
+                        </div>
+                        """
+                    facts_html += "</div>"
                     
                     # 4. BOTTOM-UP COMPONENTS
                     bu = analysis.get("bottom_up_reconstruction", {})
@@ -397,10 +364,38 @@ def launch_dashboard(rag_stream_function):
                     </div>
                     """
                     
-                    # 6. VALIDATION TABLE
+                    # 6. VALIDATION CHECKLIST (HTML)
                     val = analysis.get("validation", {})
                     checks = val.get("sanity_checks", [])
-                    df_validation = pd.DataFrame(checks) if checks else pd.DataFrame()
+                    
+                    check_html = "<div class='check-list'>"
+                    for c in checks:
+                        # Determine Status
+                        diff = c.get('diff_percentage', 0)
+                        # Remove % sign if present and convert to float
+                        if isinstance(diff, str):
+                            diff = float(diff.replace('%', ''))
+                        
+                        is_ok = abs(diff) < 20
+                        status = "ok" if is_ok else "warn"
+                        icon = "✅" if is_ok else "⚠️"
+                        
+                        check_html += f"""
+                        <div class="check-item {status}">
+                            <div class="check-icon">{icon}</div>
+                            <div style="flex-grow:1;">
+                                <div style="font-weight:bold; font-size:0.9em;">{c.get('check_name', 'Check')}</div>
+                                <div style="font-size:0.8em; opacity:0.8;">{c.get('explanation', '')}</div>
+                            </div>
+                            <div style="text-align:right;">
+                                <div style="font-weight:bold;">{c.get('comparison_value', 'N/A')}</div>
+                                <div style="font-size:0.7em; opacity:0.6;">(Diff: {diff}%)</div>
+                            </div>
+                        </div>
+                        """
+                    if not checks:
+                        check_html += "<div style='opacity:0.5; font-style:italic;'>Aucun check disponible.</div>"
+                    check_html += "</div>"
                     
                     # 7. FINAL RESULT
                     final_val = final_est.get('value', 0)
@@ -450,14 +445,51 @@ def launch_dashboard(rag_stream_function):
                     </div>
                     """
                     
-                    # 9. SOURCES TABLE
+                    # 9. SOURCES LIST (HTML)
                     sources = analysis.get("sources_registry", [])
-                    df_sources = pd.DataFrame(sources) if sources else pd.DataFrame()
+                    sources_html = "<div class='source-list'>"
+                    for s in sources:
+                        sources_html += f"""
+                        <div class="source-item" style="border-left: 2px solid #666;">
+                            <div class="source-header">
+                                <span>{s.get('date', 'N/A')}</span>
+                                <span class="source-badge secondary">{s.get('type', 'Source').upper()}</span>
+                            </div>
+                            <div style="color: #0091DA; font-weight: bold; margin-bottom: 3px;">{s.get('name', 'Source')}</div>
+                            <div style="font-size: 0.85em; opacity: 0.8;">{s.get('details', '')}</div>
+                        </div>
+                        """
+                    if not sources:
+                        sources_html += "<div style='opacity:0.5'>Pas de sources enregistrées.</div>"
+                    sources_html += "</div>"
+                    
+                    # GENERATE SIZING SUMMARY for downstream modules
+                    # Use the same path as final_html (calculation.final_estimate)
+                    calc_for_summary = analysis.get('calculation', {})
+                    final_est_summary = calc_for_summary.get('final_estimate', {})
+                    final_val = final_est_summary.get('value', 0)
+                    range_low = final_est_summary.get('range_low', 0)
+                    range_high = final_est_summary.get('range_high', 0)
+                    rel = analysis.get('reliability', {})
+                    conf = rel.get('overall_confidence', 'LOW').upper()
+                    
+                    def fmt_curr(v):
+                        if isinstance(v, (int, float)):
+                            if v >= 1e9: return f"€{v/1e9:.1f}B"
+                            if v >= 1e6: return f"€{v/1e6:.1f}M"
+                            if v >= 1e3: return f"€{v/1e3:.1f}K"
+                            return f"€{v:,.0f}"
+                        return str(v)
+                    
+                    sizing_summary = f"""ESTIMATION DU MARCHÉ - {company.upper()} ({country.upper()}, {year})
+{fmt_curr(final_val)}
+Fourchette: {fmt_curr(range_low)} - {fmt_curr(range_high)}
+Fiabilité: {conf}""".strip()
                     
                     return (
                         ctx_html,
                         mkt_html,
-                        df_facts,
+                        facts_html,       # HTML REPLACEMENT
                         eu_html,
                         ap_html,
                         uv_html,
@@ -465,8 +497,14 @@ def launch_dashboard(rag_stream_function):
                         calc_html,
                         final_html,
                         rel_html,
-                        df_validation,
-                        df_sources
+                        check_html,       # HTML REPLACEMENT
+                        sources_html,     # HTML REPLACEMENT
+                        # === NEW: Global State Updates ===
+                        company,          # → state_company
+                        country,          # → state_country
+                        year,             # → state_year
+                        additional,       # → state_context
+                        sizing_summary    # → state_sizing_summary
                     )
                 
                 btn_run_sizing.click(
@@ -475,7 +513,7 @@ def launch_dashboard(rag_stream_function):
                     outputs=[
                         out_context_lock,
                         out_market_definition,
-                        out_facts_local,
+                        out_facts_registry,        # Updated Output
                         out_economic_unit,
                         out_addressable_pop,
                         out_unit_value,
@@ -483,40 +521,40 @@ def launch_dashboard(rag_stream_function):
                         out_calculation,
                         out_final_result,
                         out_reliability,
-                        out_validation,
-                        out_sources_registry
+                        out_validation_checklist, # Updated Output
+                        out_sources_list,         # Updated Output
+                        # === NEW: Global State Updates ===
+                        state_company,
+                        state_country,
+                        state_year,
+                        state_context,
+                        state_sizing_summary
                     ]
                 )
 
             # ─── ONGLET 2 : SEGMENTATION DES ENTREPRISES CONCURRENTES ───
-            with gr.Tab("🎯 Segmentation Entreprises"):
-                gr.Markdown("""
-                ### 🎯 Segmentation des Entreprises Concurrentes
-                
-                > **Méthodologie** : Segmenter les entreprises qui CAPTENT la valeur du marché (pas les clients), 
-                > en s'appuyant sur les résultats du Market Sizing contextuel.
-                > Chaque segment = un sous-espace économique + logique de revenus distincte + poids économique différenciable.
-                """)
+            with gr.Tab("Structure du marché"):
+                gr.Markdown("### Contexte de la segmentation")
                 
                 # SECTION 1: VERROUILLAGE DU CONTEXTE + MARKET SIZING
                 with gr.Row():
                     with gr.Column(scale=2):
-                        gr.Markdown("##### 1️⃣ Contexte & Résultats du Market Sizing")
+                        gr.Markdown("#### Paramètres")
                         with gr.Row():
                             seg_company = gr.Textbox(
-                                label="🏢 Entreprise de Référence",
+                                label="Entreprise de Référence",
                                 placeholder="ex: Doctolib, Alan, Qonto...",
                                 value=""
                             )
                             seg_country = gr.Dropdown(
                                 choices=["France", "Allemagne", "Pologne", "Espagne", "Italie", "UK", "USA"],
-                                label="🌍 Pays / Zone",
+                                label="Pays / Zone",
                                 value="France",
                                 allow_custom_value=True
                             )
                         with gr.Row():
                             seg_offerings = gr.Textbox(
-                                label="📦 Offre / Périmètre Fonctionnel",
+                                label="Offre / Périmètre Fonctionnel",
                                 placeholder="ex: Téléconsultation, Prise de RDV, Gestion de cabinet...",
                                 value=""
                             )
@@ -527,43 +565,44 @@ def launch_dashboard(rag_stream_function):
                                 allow_custom_value=True
                             )
                         seg_market_sizing = gr.Textbox(
-                            label="📊 Résultats du Market Sizing (OBLIGATOIRE)",
+                            label="Résultats du Market Sizing (OBLIGATOIRE)",
                             placeholder="Collez ici les résultats du Market Sizing contextuel : définition du marché, unités économiques, ordres de grandeur, hypothèses structurantes...",
                             lines=5,
                             value=""
                         )
-                        btn_run_segmentation = gr.Button("🚀 Segmenter les Entreprises du Marché", variant="primary")
+                        btn_run_segmentation = gr.Button("Lancer la segmentation", variant="primary")
                     
                     with gr.Column(scale=1):
                         gr.Markdown("""
-                        ##### ⚠️ ATTENTION
+                        ##### Introduction
                         On segmente les **ENTREPRISES** qui captent la valeur, 
                         **pas les clients**.
                         
                         ##### 📋 Cette analyse va produire :
-                        - ✅ Logique de segmentation retenue
-                        - ✅ 4-8 segments d'entreprises
-                        - ✅ Lien chiffré avec le sizing
-                        - ✅ Positionnement de l'entreprise
-                        - ✅ Carte du marché par acteurs
-                        - ✅ Fiabilité & limites
+                        -  Logique de segmentation retenue
+                        -  4-8 segments d'entreprises
+                        -  Lien chiffré avec le sizing
+                        -  Positionnement de l'entreprise
+                        -  Carte du marché par acteurs
+                        -  Fiabilité & limites
                         """)
                 
                 # SECTION 2: CONTEXTE VERROUILLÉ
-                with gr.Accordion("📌 1. Contexte & Market Sizing Utilisé", open=True):
+                with gr.Accordion("1. Contexte", open=True):
                     out_seg_context = gr.HTML()
                 
-                # SECTION 3: LOGIQUE DE SEGMENTATION
-                with gr.Accordion("📐 2. Logique de Segmentation Retenue", open=True):
+                # SECTION 3: LOGIQUE DE SEGMENTATION (REMPLACEMENT UX)
+                with gr.Accordion(" 2. Logique de Segmentation Retenue", open=True):
                     out_seg_logic = gr.HTML()
-                    out_seg_axes = gr.Dataframe(label="Axes Utilisés vs Rejetés", interactive=False)
+                    # REMPLACÉ: gr.Dataframe
+                    out_seg_axes_matrix = gr.HTML(label="Matrice des Axes")
                 
                 # SECTION 4: SEGMENTS D'ENTREPRISES
-                gr.Markdown("### 🏢 3. Segments d'Entreprises (4-8 max)")
+                gr.Markdown("### 3. Segments d'Entreprises (4-8 max)")
                 out_seg_cards = gr.HTML(label="Cartes des Segments")
                 
                 # SECTION 5: DISTRIBUTION DE VALEUR & CARTE
-                with gr.Accordion("💰 4. Dynamique de Valeur & Carte du Marché", open=True):
+                with gr.Accordion(" 4. Dynamique de Valeur & Carte du Marché", open=True):
                     with gr.Row():
                         out_seg_bubble = gr.Plot(label="Carte du Marché (Positionnement & Valeur)")
                         out_seg_bar = gr.Plot(label="Répartition de la Valeur Captée")
@@ -571,7 +610,7 @@ def launch_dashboard(rag_stream_function):
 
                 
                 # SECTION 6: POSITIONNEMENT ENTREPRISE
-                with gr.Accordion("🎯 5. Positionnement de l'Entreprise de Référence", open=True):
+                with gr.Accordion("5. Positionnement", open=True):
                     with gr.Row():
                         out_seg_core = gr.HTML(label="Segments Cœur de Marché")
                         out_seg_adjacent = gr.HTML(label="Adjacents Crédibles")
@@ -581,20 +620,20 @@ def launch_dashboard(rag_stream_function):
                 with gr.Accordion("🔍 6. Fiabilité & Limites", open=False):
                     out_seg_reliability = gr.HTML()
                     with gr.Row():
-                        out_seg_sizing_facts = gr.Dataframe(label="Facts du Sizing Utilisés", interactive=False)
-                        out_seg_hypotheses = gr.Dataframe(label="Nouvelles Hypothèses", interactive=False)
+                        # REMPLACÉ: gr.Dataframes
+                        out_seg_logic_flow = gr.HTML(label="Logique Factuelle & Hypothèses")
                 
                 # HANDLER
                 def run_company_segmentation(company, offerings, country, year, market_sizing):
                     if not company.strip() or not offerings.strip():
                         return (
-                            "<div style='color:#FF5252; padding:20px;'>⚠️ Veuillez entrer une entreprise et son offre.</div>",
+                            "<div style='color:#FF5252; padding:20px;'>Veuillez entrer une entreprise et son offre.</div>",
                             "", None, None, None, None, "", "", "", "", "", None, None
                         )
                     
                     if not market_sizing.strip():
                         return (
-                            "<div style='color:#FFAB00; padding:20px;'>⚠️ <b>Market Sizing manquant.</b> Veuillez d'abord exécuter le module Market Sizing Contextuel et coller les résultats ici. La segmentation s'appuie sur ces données.</div>",
+                            "<div style='color:#FFAB00; padding:20px;'><b>Market Sizing manquant.</b> Veuillez d'abord exécuter le module Market Sizing Contextuel et coller les résultats ici. La segmentation s'appuie sur ces données.</div>",
                             "", None, None, None, None, "", "", "", "", "", None, None
                         )
                     
@@ -610,7 +649,7 @@ def launch_dashboard(rag_stream_function):
                     if not result.get("success"):
                         error_msg = result.get("error", "Erreur inconnue")
                         return (
-                            f"<div style='color:#FF5252; padding:20px;'>❌ Erreur : {error_msg}</div>",
+                            f"<div style='color:#FF5252; padding:20px;'>Erreur : {error_msg}</div>",
                             "", None, None, None, None, "", "", "", "", "", None, None
                         )
                     
@@ -638,7 +677,7 @@ def launch_dashboard(rag_stream_function):
                     </div>
                     """
                     
-                    # 2. SEGMENTATION LOGIC
+                    # 2. SEGMENTATION LOGIC WITH VISUAL MATRIX
                     logic = analysis.get("segmentation_logic", {})
                     primary = logic.get("primary_axis", {})
                     secondary = logic.get("secondary_axes", [])
@@ -646,7 +685,7 @@ def launch_dashboard(rag_stream_function):
                     
                     logic_html = f"""
                     <div style="background: #1E1E1E; padding: 20px; border-radius: 10px;">
-                        <div style="font-weight: bold; color: #0091DA; font-size: 1.1em; margin-bottom: 15px;">🎯 Axe Principal de Segmentation</div>
+                        <div style="font-weight: bold; color: #0091DA; font-size: 1.1em; margin-bottom: 15px;">Axe Principal de Segmentation</div>
                         <div style="background: rgba(0,145,218,0.15); padding: 15px; border-radius: 8px; border-left: 3px solid #0091DA;">
                             <div style="font-size: 1.1em; font-weight: bold;">{primary.get('axis_name', 'N/A')}</div>
                             <div style="opacity: 0.8; margin-top: 5px;">Type: <code>{primary.get('axis_type', 'N/A')}</code></div>
@@ -656,25 +695,38 @@ def launch_dashboard(rag_stream_function):
                     </div>
                     """
                     
-                    # Axes table (secondary + rejected)
-                    axes_for_df = []
+                    # AXES MATRIX (HTML)
+                    axes_html = "<div class='axes-matrix'>"
+                    
+                    # Col 1: Kept
+                    axes_html += "<div class='axes-col'><div style='font-weight:bold; margin-bottom:10px; color:#00C853;'>Axes Secondaires Retenus</div>"
                     for ax in secondary:
-                        axes_for_df.append({
-                            "Axe": ax.get("axis_name", ""),
-                            "Type": ax.get("axis_type", ""),
-                            "Statut": "✅ Secondaire",
-                            "Justification/Raison": ax.get("relevance", "")
-                        })
+                        axes_html += f"""
+                        <div class="axis-card kept">
+                            <div style="font-weight: bold;">{ax.get('axis_name', 'N/A')}</div>
+                            <div style="font-size: 0.85em; opacity: 0.8;">{ax.get('relevance', '')}</div>
+                        </div>
+                        """
+                    if not secondary:
+                        axes_html += "<div style='opacity:0.5'>Aucun axe secondaire.</div>"
+                    axes_html += "</div>"
+                    
+                    # Col 2: Rejected
+                    axes_html += "<div class='axes-col'><div style='font-weight:bold; margin-bottom:10px; color:#9E9E9E;'>Axes Éliminés</div>"
                     for ax in rejected:
-                        axes_for_df.append({
-                            "Axe": ax.get("axis_name", ""),
-                            "Type": "-",
-                            "Statut": "❌ Rejeté",
-                            "Justification/Raison": ax.get("reason", "")
-                        })
-                    df_axes = pd.DataFrame(axes_for_df) if axes_for_df else pd.DataFrame()
+                        axes_html += f"""
+                        <div class="axis-card rejected">
+                            <div style="font-weight: bold;">{ax.get('axis_name', 'N/A')}</div>
+                            <div style="font-size: 0.85em; opacity: 0.8;">{ax.get('reason', '')}</div>
+                        </div>
+                        """
+                    if not rejected:
+                        axes_html += "<div style='opacity:0.5'>Aucun axe rejeté.</div>"
+                    axes_html += "</div></div>"
+                    
                     
                     # 3. SEGMENT CARDS & CHARTS PREPARATION
+
                     segments = analysis.get("company_segments", [])
                     
                     # Define consistent color palette
@@ -871,7 +923,7 @@ def launch_dashboard(rag_stream_function):
                     # Core segments
                     core_ids = pos.get("core_market_segments", [])
                     current = pos.get("current_segments", [])
-                    core_html = "<div style='background: rgba(0,145,218,0.1); padding: 15px; border-radius: 8px; border-left: 3px solid #0091DA;'><div style='font-weight: bold; margin-bottom: 10px;'>🎯 Cœur de Marché</div>"
+                    core_html = "<div style='background: rgba(0,145,218,0.1); padding: 15px; border-radius: 8px; border-left: 3px solid #0091DA;'><div style='font-weight: bold; margin-bottom: 10px;'>Cœur de Marché</div>"
                     for c in current:
                         if c.get("segment_id") in core_ids:
                             # Find segment name
@@ -883,7 +935,7 @@ def launch_dashboard(rag_stream_function):
                     
                     # Adjacent segments
                     adjacent = pos.get("credible_adjacent_segments", [])
-                    adj_html = "<div style='background: rgba(0,200,83,0.1); padding: 15px; border-radius: 8px; border-left: 3px solid #00C853;'><div style='font-weight: bold; margin-bottom: 10px;'>🚀 Adjacents Crédibles</div>"
+                    adj_html = "<div style='background: rgba(0,200,83,0.1); padding: 15px; border-radius: 8px; border-left: 3px solid #00C853;'><div style='font-weight: bold; margin-bottom: 10px;'>Adjacents Crédibles</div>"
                     for a in adjacent:
                         matched = next((s for s in segments if s.get("segment_id") == a.get("segment_id")), None)
                         seg_name = matched.get("segment_name", a.get("segment_id")) if matched else a.get("segment_id")
@@ -893,7 +945,7 @@ def launch_dashboard(rag_stream_function):
                     
                     # Out of scope
                     oos = pos.get("out_of_scope_segments", [])
-                    oos_html = "<div style='background: rgba(255,82,82,0.1); padding: 15px; border-radius: 8px; border-left: 3px solid #FF5252;'><div style='font-weight: bold; margin-bottom: 10px;'>❌ Hors Scope Réaliste</div>"
+                    oos_html = "<div style='background: rgba(255,82,82,0.1); padding: 15px; border-radius: 8px; border-left: 3px solid #FF5252;'><div style='font-weight: bold; margin-bottom: 10px;'>Hors Périmètre</div>"
                     for o in oos:
                         matched = next((s for s in segments if s.get("segment_id") == o.get("segment_id")), None)
                         seg_name = matched.get("segment_name", o.get("segment_id")) if matched else o.get("segment_id")
@@ -933,25 +985,94 @@ def launch_dashboard(rag_stream_function):
                     </div>
                     """
                     
-                    # 7. FACTS & HYPOTHESES TABLES
+                    # 7. LOGICAL FLOW OF FACTS & HYPOTHESES (HTML)
                     fh = analysis.get("facts_and_hypotheses", {})
-                    df_sizing_facts = pd.DataFrame(fh.get("sizing_facts_used", [])) if fh.get("sizing_facts_used") else pd.DataFrame()
-                    df_hyps = pd.DataFrame(fh.get("new_hypotheses", [])) if fh.get("new_hypotheses") else pd.DataFrame()
+                    sizing_facts = fh.get("sizing_facts_used", [])
+                    new_hyps = fh.get("new_hypotheses", [])
+                    
+                    logic_flow_html = """
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                        <div style="background: rgba(0,145,218,0.05); padding: 15px; border-radius: 8px;">
+                            <div style="font-weight: bold; color: #0091DA; margin-bottom: 10px;">🏗️ Facts Structurants (Sizing)</div>
+                            <div class="source-list">
+                    """
+                    
+                    for f in sizing_facts:
+                        logic_flow_html += f"""
+                        <div class="source-item">
+                            <div style="font-weight: bold; font-size: 0.9em;">{f.get('fact', 'N/A')}</div>
+                            <div style="font-size: 0.8em; opacity: 0.8; margin-top: 3px;">Implication: {f.get('segmentation_implication', 'N/A')}</div>
+                        </div>
+                        """
+                    if not sizing_facts:
+                         logic_flow_html += "<div style='opacity:0.5'>Aucun fact spécifique.</div>"
+                    
+                    logic_flow_html += """
+                            </div>
+                        </div>
+                        <div style="background: rgba(255,171,0,0.05); padding: 15px; border-radius: 8px;">
+                            <div style="font-weight: bold; color: #FFAB00; margin-bottom: 10px;">🧪 Nouvelles Hypothèses</div>
+                            <div class="source-list">
+                    """
+                    
+                    for h in new_hyps:
+                         logic_flow_html += f"""
+                        <div class="source-item" style="border-left-color: #FFAB00;">
+                            <div style="font-weight: bold; font-size: 0.9em;">{h.get('hypothesis', 'N/A')}</div>
+                            <div style="display: flex; justify-content: space-between; margin-top: 5px; font-size: 0.8em;">
+                                <span style="opacity: 0.7;">Impact: <b>{h.get('impact_level', 'medium').upper()}</b></span>
+                                <span style="opacity: 0.7;">Sensibilité: <b>{h.get('sensitivity', 'medium').upper()}</b></span>
+                            </div>
+                        </div>
+                        """
+                    
+                    if not new_hyps:
+                         logic_flow_html += "<div style='opacity:0.5'>Aucune hypothèse majeure.</div>"
+
+                    logic_flow_html += """
+                            </div>
+                        </div>
+                    </div>
+                    """
+                    
+                    # GENERATE SEGMENTATION SUMMARY for Competitive Analysis
+                    seg_summary_lines = [f"SEGMENTATION - {company.upper()} ({country}, {year})"]
+                    
+                    # Core market segments
+                    core_names = []
+                    for c in current:
+                        if c.get("segment_id") in core_ids:
+                            matched = next((s for s in segments if s.get("segment_id") == c.get("segment_id")), None)
+                            if matched:
+                                core_names.append(matched.get("segment_name", c.get("segment_id")))
+                    if core_names:
+                        seg_summary_lines.append(f"Marché ciblé: {', '.join(core_names[:3])}")
+                    
+                    # Niche/adjacent info
+                    adj_names = []
+                    for a in adjacent:
+                        matched = next((s for s in segments if s.get("segment_id") == a.get("segment_id")), None)
+                        if matched:
+                            adj_names.append(matched.get("segment_name", a.get("segment_id")))
+                    if adj_names:
+                        seg_summary_lines.append(f"Niche adjacente: {', '.join(adj_names[:2])}")
+                    
+                    seg_summary = "\n".join(seg_summary_lines)
                     
                     return (
                         ctx_html,
                         logic_html,
-                        df_axes,
-                        segment_cards_html, # NEW: HTML Cards
-                        fig_bar,            # NEW: Bar Chart
+                        axes_html,           # HTML REPLACEMENT
+                        segment_cards_html,
+                        fig_bar,
                         fig_bubble,
                         value_html,
                         core_html,
                         adj_html,
                         oos_html,
                         rel_html,
-                        df_sizing_facts,
-                        df_hyps
+                        logic_flow_html,      # HTML REPLACEMENT
+                        seg_summary           # For state_seg_summary
                     )
                 
                 btn_run_segmentation.click(
@@ -960,136 +1081,513 @@ def launch_dashboard(rag_stream_function):
                     outputs=[
                         out_seg_context,
                         out_seg_logic,
-                        out_seg_axes,
-                        out_seg_cards,    # Changed Name
-                        out_seg_bar,      # Changed Name
+                        out_seg_axes_matrix, # Updated output name/type
+                        out_seg_cards,
+                        out_seg_bar,
                         out_seg_bubble,
                         out_seg_value_analysis,
                         out_seg_core,
                         out_seg_adjacent,
                         out_seg_out_of_scope,
                         out_seg_reliability,
-                        out_seg_sizing_facts,
-                        out_seg_hypotheses
+                        out_seg_logic_flow,   # Merged/Updated output name/type
+                        state_seg_summary     # Segmentation summary state
                     ]
                 )
 
-            # ─── ONGLET 3 : ANALYSE CONCURRENTIELLE (REVAMPED) ───
-            with gr.Tab("⚔️ Analyse Concurrentielle"):
-                gr.Markdown("### 🌍 Module d'Intelligence Concurrentielle (Facts-First)")
+            # ─── ONGLET 3 : ANALYSE CONCURRENTIELLE (REFACTORED: Facts-First) ───
+            with gr.Tab("Concurrence"):
+                gr.Markdown("### Analyse concurrentielle")
+                
+                # CONTEXT INPUTS (Like other modules)
+                with gr.Row():
+                    comp_company = gr.Textbox(label="Entreprise de Référence", placeholder="Ex: Salesforce")
+                    comp_country = gr.Textbox(label="Pays/Marché", placeholder="Ex: France")
+                    comp_year = gr.Textbox(label="Année", placeholder="Ex: 2024")
                 
                 with gr.Row():
-                    btn_comp_run = gr.Button("🚀 Lancer l'Analyse Concurrentielle", variant="primary")
-                    # Hidden input to trigger seed if empty
-                    comp_status = gr.Textbox(label="Status", value="Ready", visible=False)
+                    comp_sizing_ref = gr.Textbox(
+                        label="Contexte Market Sizing (optionnel)", 
+                        placeholder="Coller ici un résumé du market sizing...",
+                        lines=2
+                    )
+                    comp_seg_ref = gr.Textbox(
+                        label="Contexte Segmentation (optionnel)", 
+                        placeholder="Coller ici un résumé de la segmentation...",
+                        lines=2
+                    )
                 
-                # BLOCK 1 & 3: ACTORS & DIFFERENTIATION (Top Layer)
-                with gr.Row():
-                    with gr.Column(scale=1):
-                         gr.Markdown("#### 📦 Bloc 1 : Cartographie des Acteurs")
-                         out_actors_summary = gr.Markdown()
-                         out_actors_table = gr.Dataframe(label="Typologie des Acteurs", interactive=False)
-                    
-                    with gr.Column(scale=1):
-                        gr.Markdown("#### 🎯 Bloc 3 : Positionnement & Différenciation")
-                        out_diff_table = gr.Dataframe(label="Clusters de Valeur", interactive=False)
-
-                # BLOCK 2: OFFERINGS (Middle Layer)
-                gr.Markdown("#### 🧠 Bloc 2 : Benchmark des Offres (Réalité vs Marketing)")
-                out_offerings_matrix = gr.Dataframe(label="Matrice Fonctionnelle", interactive=False)
+                btn_comp_run = gr.Button("Lancer l'analyse", variant="primary")
                 
-                # BLOCK 4 & 5: DEMAND & RECOMMENDATION (Bottom Layer)
-                with gr.Row():
-                    with gr.Column(scale=1):
-                        gr.Markdown("#### 📣 Bloc 4 : Lecture de la Demande (Gaps)")
-                        out_demand_table = gr.Dataframe(label="Attentes Marché", interactive=False)
+                # CONTEXT SUMMARY
+                with gr.Accordion("1. Contexte", open=True):
+                    out_comp_context = gr.HTML()
+                
+                # BLOCK 1: ACTORS MAPPING (Cards)
+                with gr.Accordion("2. Cartographie des Acteurs", open=True):
+                    out_actors_cards = gr.HTML(label="Acteurs Identifiés")
+                
+                # BLOCK 2: OFFERINGS BENCHMARK (Visual Matrix)
+                with gr.Accordion("3. Benchmark des Offres", open=True):
+                    gr.Markdown("*Comparaison fonctionnelle: ✓ Confirmé | ~ Déclaré | ✗ Absent*")
+                    out_offerings_html = gr.HTML(label="Matrice des Fonctionnalités")
+                
+                # BLOCK 3: POSITIONING (Map + Clusters)
+                with gr.Accordion("4. Positionnement", open=True):
+                    with gr.Row():
+                        out_positioning_plot = gr.Plot(label="Carte de Positionnement")
+                        out_clusters_html = gr.HTML(label="Clusters de Valeur")
+                
+                # BLOCK 4: MARKET GAPS
+                with gr.Accordion("5. Lecture de la Demande (Gaps)", open=True):
+                    out_gaps_html = gr.HTML(label="Besoins vs Couverture")
+                
+                # BLOCK 5: MARKET TRENDS (replaces recommendation)
+                gr.Markdown("### 6. Tendances clés du marché")
+                out_trends_html = gr.HTML()
+                
+                # RELIABILITY & SOURCES
+                with gr.Accordion("7. Fiabilité & Sources", open=False):
+                    out_reliability_html = gr.HTML()
+                    out_sources_html = gr.HTML(label="Registre des Sources")
+                
+                # HANDLER
+                def run_competitive_analysis(company, country, year, sizing_ctx, seg_ctx):
+                    import plotly.express as px
+                    import plotly.graph_objects as go
+                    from strategic_facts_service import strategic_facts_service
                     
-                    with gr.Column(scale=1):
-                        gr.Markdown("#### 🧭 Bloc 5 : Recommandation Stratégique")
-                        out_rec_html = gr.HTML()
-
-                # SOURCES REGISTER
-                gr.Markdown("---")
-                gr.Markdown("### 📑 Registre Centralisé des Faits & Sources (Concurrence)")
-                out_sources_table = gr.Dataframe(
-                    headers=["Variable / Fact", "Valeur", "Source", "Type Source", "Méthode", "Confiance"],
-                    label="Audit des Sources Factuelles", 
-                    interactive=False,
-                    wrap=True
-                )
-
-                def run_competitive_analysis():
-                    # 1. Ensure Seed Data exists (for demo)
-                    facts_manager.facts_manager.generate_competitive_seed_data()
+                    if not company or not country or not year:
+                        return (
+                            "<div style='color: #FF5252;'>Veuillez remplir tous les champs obligatoires (Entreprise, Pays, Année).</div>",
+                            "", "", None, "", "", "", "", ""
+                        )
                     
-                    # DEBUG: Force Reload of module to prevent stale cache
-                    import importlib
-                    import competitive_analysis
-                    importlib.reload(competitive_analysis)
-                    print("🔄 Debug: Competitive Analysis Module Reloaded.")
+                    # 1. Call the new dynamic service
+                    result = strategic_facts_service.generate_competitive_analysis(
+                        company_name=company,
+                        country=country,
+                        year=year,
+                        market_sizing_context=sizing_ctx,
+                        segmentation_context=seg_ctx
+                    )
                     
-                    # 2. Instantiate Engine
-                    from competitive_analysis import CompetitiveAnalysisEngine
-                    engine = CompetitiveAnalysisEngine(facts_manager.facts_manager)
+                    if not result.get("success"):
+                        error_msg = result.get("error", "Erreur inconnue")
+                        return (
+                            f"<div style='color: #FF5252;'>Erreur: {error_msg}</div>",
+                            "", "", None, "", "", "", "", ""
+                        )
                     
-                    # DEBUG: Introspection
-                    print(f"🧐 Debug: Engine Methods: {[m for m in dir(engine) if not m.startswith('__')]}")
-                    if not hasattr(engine, "get_sources_dataframe"):
-                        print("❌ CRITICAL: get_sources_dataframe MISSING from engine instance!")
+                    analysis = result.get("analysis", {})
                     
-                    # 3. Execute Blocks
-                    # Block 1
-                    b1 = engine.analyze_actors()
-                    
-                    # Block 2
-                    b2_df = engine.analyze_offerings()
-                    
-                    # Block 3
-                    b3_df = engine.analyze_differentiation()
-                    
-                    # Block 4
-                    b4 = engine.analyze_demand()
-                    
-                    # Block 5
-                    b5 = engine.recommend_positioning()
-                    
-                    # Sources Register
-                    sources_df = engine.get_sources_dataframe()
-                    
-                    # Format Block 5 HTML
-                    rec_html = f"""
-                    <div style="background: linear-gradient(135deg, #00C853 0%, #009624 100%); color: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
-                        <div style="font-size: 0.8em; text-transform: uppercase; letter-spacing: 1px; opacity: 0.8;">Recommandation Prioritaire</div>
-                        <div style="font-size: 1.5em; font-weight: bold; margin: 10px 0;">{b5['strategy_title']}</div>
-                        <div style="font-style: italic; opacity: 0.9; margin-bottom: 15px;">"{b5['rationale']}"</div>
-                        <div style="background: rgba(0,0,0,0.2); padding: 5px 10px; border-radius: 4px; font-size: 0.9em;">
-                            🚫 <b>À éviter :</b> {b5['avoid']}
+                    # 2. CONTEXT SUMMARY HTML
+                    ctx = analysis.get("context_summary", {})
+                    ctx_html = f"""
+                    <div style="background: rgba(0,145,218,0.1); padding: 15px; border-radius: 10px; border-left: 3px solid #0091DA;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <div style="font-weight: bold; font-size: 1.2em;">🏢 {ctx.get('reference_company', company)}</div>
+                                <div style="opacity: 0.8; margin-top: 5px;">{ctx.get('market_scope', 'Périmètre non défini')}</div>
+                            </div>
+                            <div style="text-align: right; opacity: 0.7;">
+                                <div>📅 {ctx.get('analysis_date', year)}</div>
+                                <div>🌍 {country}</div>
+                            </div>
                         </div>
                     </div>
                     """
                     
-                    return (
-                        b1["summary_text"], 
-                        b1["actors_table"], 
-                        b3_df, 
-                        b2_df, 
-                        b4["expectations_table"], 
-                        rec_html,
-                        sources_df
+                    # 3. ACTORS CARDS HTML
+                    actors = analysis.get("actors", [])
+                    actors_html = "<div class='actor-grid'>"
+                    for actor in actors:
+                        typology = actor.get("typology", "Unknown").lower()
+                        typology_class = f"typology-{typology}" if typology in ["leader", "challenger", "niche", "emergent"] else "typology-niche"
+                        
+                        actors_html += f"""
+                        <div class="actor-card">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
+                                <div style="font-weight: bold; font-size: 1.1em; color: white;">{actor.get('name', 'N/A')}</div>
+                                <span class="actor-typology {typology_class}">{actor.get('typology', 'N/A')}</span>
+                            </div>
+                            <div style="font-size: 0.85em; color: #B0B0B0; margin-bottom: 8px;">{actor.get('core_offering', 'N/A')}</div>
+                            <div style="display: flex; justify-content: space-between; font-size: 0.8em; opacity: 0.7;">
+                                <span>{actor.get('geography', 'N/A')}</span>
+                                <span>{actor.get('revenue_order', 'N/A')}</span>
+                            </div>
+                            <div style="margin-top: 8px; font-size: 0.75em; opacity: 0.5;">Source: {actor.get('source', 'Analyse')}</div>
+                        </div>
+                        """
+                    actors_html += "</div>"
+                    
+                    # 4. OFFERINGS MATRIX HTML
+                    bench = analysis.get("offerings_benchmark", {})
+                    features = bench.get("key_features", [])
+                    matrix = bench.get("matrix", [])
+                    
+                    offerings_html = "<table class='offerings-matrix'><thead><tr><th>Acteur</th>"
+                    for feat in features:
+                        offerings_html += f"<th>{feat}</th>"
+                    offerings_html += "</tr></thead><tbody>"
+                    
+                    for row in matrix:
+                        offerings_html += f"<tr><td style='text-align:left; font-weight:bold;'>{row.get('actor', 'N/A')}</td>"
+                        actor_feats = row.get("features", {})
+                        for feat in features:
+                            feat_data = actor_feats.get(feat, {})
+                            status = feat_data.get("status", "absent") if isinstance(feat_data, dict) else feat_data
+                            
+                            if status == "confirmed":
+                                icon = "✓"
+                                css_class = "feat-confirmed"
+                            elif status == "declared":
+                                icon = "~"
+                                css_class = "feat-declared"
+                            else:
+                                icon = "✗"
+                                css_class = "feat-absent"
+                            
+                            offerings_html += f"<td class='{css_class}'>{icon}</td>"
+                        offerings_html += "</tr>"
+                    offerings_html += "</tbody></table>"
+                    
+                    # 5. POSITIONING PLOT + CLUSTERS HTML
+                    clusters = analysis.get("positioning_clusters", [])
+                    
+                    # Create Plotly scatter for positioning
+                    cluster_colors = {
+                        "Cost Leader": "#00C853",
+                        "Premium": "#0091DA",
+                        "Innovator": "#6200EA",
+                        "Service-Centric": "#FFAB00",
+                        "Generalist": "#9E9E9E"
+                    }
+                    
+                    if clusters:
+                        # Map integration level to X and economic model to Y (simple heuristic)
+                        x_map = {"Verticale": 0.8, "Horizontale": 0.3, "Spécialisée": 0.5}
+                        y_map = {"SaaS": 0.8, "License": 0.3, "Usage": 0.5, "Hybrid": 0.6}
+                        
+                        fig_pos = go.Figure()
+                        for c in clusters:
+                            x = x_map.get(c.get("integration_level", "Horizontale"), 0.5) + (hash(c.get("actor", "")) % 10) / 50
+                            y = y_map.get(c.get("economic_model", "Hybrid"), 0.5) + (hash(c.get("claimed_value", "")) % 10) / 50
+                            color = cluster_colors.get(c.get("cluster", "Generalist"), "#9E9E9E")
+                            
+                            fig_pos.add_trace(go.Scatter(
+                                x=[x], y=[y],
+                                mode="markers+text",
+                                marker=dict(size=20, color=color, opacity=0.8),
+                                text=[c.get("actor", "")],
+                                textposition="top center",
+                                name=c.get("cluster", ""),
+                                hovertemplate=f"<b>{c.get('actor')}</b><br>Cluster: {c.get('cluster')}<br>Proposition: {c.get('claimed_value')}<extra></extra>"
+                            ))
+                        
+                        fig_pos.update_layout(
+                            title="Carte de Positionnement Concurrentiel",
+                            xaxis_title="Niveau d'Intégration →",
+                            yaxis_title="Modèle Économique →",
+                            showlegend=False,
+                            paper_bgcolor="#121212",
+                            plot_bgcolor="#1E1E1E",
+                            font=dict(color="white"),
+                            xaxis=dict(showgrid=False, range=[0, 1]),
+                            yaxis=dict(showgrid=False, range=[0, 1])
+                        )
+                    else:
+                        fig_pos = go.Figure()
+                        fig_pos.update_layout(
+                            title="Données insuffisantes",
+                            paper_bgcolor="#121212",
+                            plot_bgcolor="#1E1E1E",
+                            font=dict(color="white")
+                        )
+                    
+                    # Clusters HTML
+                    clusters_html = "<div class='source-list'>"
+                    for c in clusters:
+                        color = cluster_colors.get(c.get("cluster", "Generalist"), "#9E9E9E")
+                        clusters_html += f"""
+                        <div class="source-item" style="border-left: 3px solid {color};">
+                            <div style="font-weight: bold;">{c.get('actor', 'N/A')}</div>
+                            <div style="font-size: 0.85em; opacity: 0.8; margin: 5px 0;">{c.get('claimed_value', 'N/A')}</div>
+                            <div style="display: flex; gap: 10px; font-size: 0.8em;">
+                                <span style="background: {color}; padding: 2px 6px; border-radius: 4px; color: white;">{c.get('cluster', 'N/A')}</span>
+                                <span style="opacity: 0.6;">{c.get('integration_level', 'N/A')} | {c.get('economic_model', 'N/A')}</span>
+                            </div>
+                        </div>
+                        """
+                    clusters_html += "</div>"
+                    
+                    # 6. GAPS HTML
+                    expectations = analysis.get("market_expectations", [])
+                    gaps_html = "<div class='gap-grid'>"
+                    for exp in expectations:
+                        coverage = exp.get("coverage", "unknown")
+                        if coverage == "met":
+                            gap_class = "gap-met"
+                            badge_class = "badge-met"
+                            badge_text = "✓ Couvert"
+                        elif coverage == "partial":
+                            gap_class = "gap-partial"
+                            badge_class = "badge-partial"
+                            badge_text = "~ Partiel"
+                        else:
+                            gap_class = "gap-unmet"
+                            badge_class = "badge-unmet"
+                            badge_text = "✗ Gap"
+                        
+                        importance = exp.get("importance", "Medium")
+                        imp_indicator = "🔴" if importance == "Critical" else "🟡" if importance == "High" else "⚪"
+                        
+                        gaps_html += f"""
+                        <div class="gap-card {gap_class}">
+                            <div style="flex-grow: 1;">
+                                <div style="font-weight: bold;">{imp_indicator} {exp.get('criterion', 'N/A')}</div>
+                                <div style="font-size: 0.85em; opacity: 0.8; margin-top: 3px;">{exp.get('explanation', '')}</div>
+                            </div>
+                            <span class="gap-status-badge {badge_class}">{badge_text}</span>
+                        </div>
+                        """
+                    gaps_html += "</div>"
+                    
+                    # 7. MARKET TRENDS HTML (replaces recommendation)
+                    # Call the Market Trends generator service
+                    trends_result = strategic_facts_service.generate_market_trends(
+                        company_name=company,
+                        country=country,
+                        year=year,
+                        market_sizing_context=sizing_ctx,
+                        segmentation_context=seg_ctx,
+                        competitive_context=str(analysis.get('context_summary', {}))
                     )
-
+                    
+                    trends_html = ""
+                    if trends_result.get("success"):
+                        trends = trends_result.get("analysis", {})
+                        market_trends = trends.get("market_trends", [])
+                        weak_signals = trends.get("weak_signals", [])
+                        debates = trends.get("market_debates", [])
+                        summary = trends.get("structural_vs_cyclical_summary", {})
+                        
+                        # Build trends cards
+                        driver_colors = {
+                            "technologique": "#6200EA",
+                            "réglementaire": "#0091DA",
+                            "économique": "#FFAB00",
+                            "comportemental": "#00C853",
+                            "ESG": "#4CAF50"
+                        }
+                        maturity_badges = {
+                            "émergente": ("🌱", "#4CAF50"),
+                            "en accélération": ("🚀", "#FF9800"),
+                            "mature": ("🏛️", "#9E9E9E")
+                        }
+                        
+                        trends_html = f"""
+                        <div style="background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%); padding: 20px; border-radius: 12px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                                <div style="font-size: 0.85em; text-transform: uppercase; letter-spacing: 1px; opacity: 0.7; color: #94A3B8;">Tendances du Marché • Horizon 2-5 ans</div>
+                                <div style="display: flex; gap: 10px;">
+                                    <span style="padding: 4px 10px; border-radius: 10px; font-size: 0.75em; background: rgba(100,200,100,0.2); color: #4ADE80;">{summary.get('structural_trends_count', 0)} Structurelles</span>
+                                    <span style="padding: 4px 10px; border-radius: 10px; font-size: 0.75em; background: rgba(255,171,0,0.2); color: #FFAB00;">{summary.get('cyclical_trends_count', 0)} Conjoncturelles</span>
+                                </div>
+                            </div>
+                        """
+                        
+                        # Trend cards
+                        trends_html += "<div style='display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 15px;'>"
+                        for tr in market_trends:
+                            driver = tr.get("driver", "technologique")
+                            color = driver_colors.get(driver, "#6200EA")
+                            mat = tr.get("maturity", "émergente")
+                            mat_icon, mat_color = maturity_badges.get(mat, ("🌱", "#4CAF50"))
+                            trend_type = tr.get("type", "structurelle")
+                            type_badge = "📊" if trend_type == "structurelle" else "📈"
+                            
+                            trends_html += f"""
+                            <div style="background: #1E293B; border: 1px solid #334155; border-radius: 8px; padding: 15px; border-left: 4px solid {color};">
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                                    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                                        <span style="background: {color}; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.7em; text-transform: uppercase;">{driver}</span>
+                                        <span style="background: {mat_color}; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.7em;">{mat_icon} {mat}</span>
+                                    </div>
+                                    <span style="opacity: 0.6; font-size: 0.75em;">{type_badge} {trend_type.capitalize()}</span>
+                                </div>
+                                <div style="font-weight: bold; color: #F8FAFC; margin-bottom: 8px;">{tr.get('title', 'N/A')}</div>
+                                <div style="font-size: 0.85em; color: #CBD5E1; line-height: 1.5; margin-bottom: 10px;">{tr.get('description', 'N/A')}</div>
+                                <div style="display: flex; justify-content: space-between; font-size: 0.75em; opacity: 0.7;">
+                                    <span>⏱️ {tr.get('horizon', 'moyen terme')}</span>
+                                    <span>📍 {tr.get('geographic_scope', country)}</span>
+                                </div>
+                                {f'<div style="margin-top: 8px; font-size: 0.7em; color: #FFAB00;">⚠️ Incertitude: {tr.get("uncertainty_reason", "")}</div>' if tr.get('uncertainty_level') in ['moyen', 'élevé'] else ''}
+                            </div>
+                            """
+                        trends_html += "</div>"
+                        
+                        # Weak signals section
+                        if weak_signals:
+                            trends_html += """
+                            <div style="margin-top: 20px; padding: 15px; background: rgba(255,171,0,0.1); border-radius: 8px; border: 1px dashed #FFAB00;">
+                                <div style="font-weight: bold; color: #FFAB00; margin-bottom: 10px;">🔮 Signaux Faibles</div>
+                                <div style="display: grid; gap: 10px;">
+                            """
+                            for sig in weak_signals:
+                                trends_html += f"""
+                                <div style="background: rgba(0,0,0,0.2); padding: 10px; border-radius: 6px;">
+                                    <div style="font-weight: bold; color: #F8FAFC; font-size: 0.9em;">{sig.get('signal', 'N/A')}</div>
+                                    <div style="font-size: 0.8em; color: #CBD5E1; margin-top: 5px;">Impact potentiel: {sig.get('potential_impact', 'N/A')}</div>
+                                    <div style="font-size: 0.75em; opacity: 0.6; margin-top: 3px;">Horizon: {sig.get('emergence_timeline', 'N/A')}</div>
+                                </div>
+                                """
+                            trends_html += "</div></div>"
+                        
+                        # Market debates section
+                        if debates:
+                            trends_html += """
+                            <div style="margin-top: 20px; padding: 15px; background: rgba(0,145,218,0.1); border-radius: 8px; border: 1px dashed #0091DA;">
+                                <div style="font-weight: bold; color: #0091DA; margin-bottom: 10px;">⚖️ Zones d'Incertitude / Débats du Marché</div>
+                            """
+                            for deb in debates:
+                                trends_html += f"""
+                                <div style="margin-bottom: 10px; padding: 10px; background: rgba(0,0,0,0.2); border-radius: 6px;">
+                                    <div style="font-weight: bold; color: #F8FAFC; font-size: 0.9em;">{deb.get('topic', 'N/A')}</div>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; font-size: 0.8em;">
+                                        <div style="padding: 8px; background: rgba(100,200,100,0.1); border-radius: 4px;">
+                                            <div style="color: #4ADE80; font-weight: bold;">Position A</div>
+                                            <div style="color: #CBD5E1;">{deb.get('position_a', 'N/A')}</div>
+                                        </div>
+                                        <div style="padding: 8px; background: rgba(255,82,82,0.1); border-radius: 4px;">
+                                            <div style="color: #F87171; font-weight: bold;">Position B</div>
+                                            <div style="color: #CBD5E1;">{deb.get('position_b', 'N/A')}</div>
+                                        </div>
+                                    </div>
+                                    <div style="font-size: 0.75em; opacity: 0.6; margin-top: 5px;">Consensus: {deb.get('consensus_level', 'N/A')}</div>
+                                </div>
+                                """
+                            trends_html += "</div>"
+                        
+                        trends_html += "</div>"
+                    else:
+                        trends_html = f"<div style='color: #FFAB00; padding: 15px;'>⚠️ Analyse des tendances non disponible: {trends_result.get('error', 'Erreur inconnue')}</div>"
+                    
+                    # 8. RELIABILITY HTML
+                    rel = analysis.get("reliability", {})
+                    rel_conf = rel.get("overall_confidence", "LOW").upper()
+                    rel_color = "#00C853" if rel_conf == "HIGH" else "#FFAB00" if rel_conf == "MEDIUM" else "#FF5252"
+                    
+                    rel_html = f"""
+                    <div style="background: #1E1E1E; padding: 20px; border-radius: 10px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                            <span style="font-weight: bold; font-size: 1.1em;">Fiabilité de l'Analyse</span>
+                            <span style="background: {rel_color}; color: white; padding: 6px 15px; border-radius: 15px; font-weight: bold;">{rel_conf}</span>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
+                            <div style="padding: 10px; background: rgba(0,0,0,0.2); border-radius: 6px;">
+                                <span style="opacity: 0.7;">Sources primaires:</span> <b>{len(rel.get('primary_sources', []))}</b>
+                            </div>
+                            <div style="padding: 10px; background: rgba(0,0,0,0.2); border-radius: 6px;">
+                                <span style="opacity: 0.7;">Fraîcheur:</span> <b>{rel.get('data_freshness', 'N/A')}</b>
+                            </div>
+                        </div>
+                        <div style="font-size: 0.85em; color: #FFAB00;">
+                            <b>⚠️ Limitations:</b> {', '.join(rel.get('key_limitations', [])[:2])}
+                        </div>
+                    </div>
+                    """
+                    
+                    # 9. SOURCES HTML
+                    facts = result.get("facts", [])
+                    sources_html = "<div class='source-list'>"
+                    for f in facts:
+                        sources_html += f"""
+                        <div class="source-item">
+                            <div class="source-header">
+                                <span class="source-badge secondary">{f.get('category', 'N/A').upper()}</span>
+                                <span>Confiance: <b style="color:{'#00C853' if f.get('confidence')=='high' else '#FFAB00'}">{f.get('confidence', 'medium').upper()}</b></span>
+                            </div>
+                            <div style="font-weight: bold; margin: 4px 0; color: #E0E0E0;">{f.get('key', 'Fact').replace('_', ' ').capitalize()}</div>
+                            <div style="font-size: 0.9em; color: white;">{f.get('value', 'N/A')}</div>
+                            <div style="font-size: 0.8em; opacity: 0.6; margin-top: 5px;">{f.get('notes', '')}</div>
+                        </div>
+                        """
+                    sources_html += "</div>"
+                    
+                    return (
+                        ctx_html,
+                        actors_html,
+                        offerings_html,
+                        fig_pos,
+                        clusters_html,
+                        gaps_html,
+                        trends_html,
+                        rel_html,
+                        sources_html
+                    )
+                
                 btn_comp_run.click(
                     run_competitive_analysis,
-                    inputs=None,
-                    outputs=[out_actors_summary, out_actors_table, out_diff_table, out_offerings_matrix, out_demand_table, out_rec_html, out_sources_table]
+                    inputs=[comp_company, comp_country, comp_year, comp_sizing_ref, comp_seg_ref],
+                    outputs=[
+                        out_comp_context,
+                        out_actors_cards,
+                        out_offerings_html,
+                        out_positioning_plot,
+                        out_clusters_html,
+                        out_gaps_html,
+                        out_trends_html,
+                        out_reliability_html,
+                        out_sources_html
+                    ]
                 )
-
-            # ─── ONGLET 3 : CHAT STRATÉGIQUE (Conservé pour support) ───
-            with gr.Tab("💬 Assistant & Sources"):
-                 with gr.Row():
-                     with gr.Column():
-                         gr.Markdown("### 🧠 Assistant Méthodologique\nPosez des questions sur les sources ou la méthode.")
-                         gr.ChatInterface(fn=rag_stream_function)
+        
+        # ═══════════════════════════════════════════════════════════════════════
+        # CONTEXT PROPAGATION: States → Input Fields (other tabs)
+        # ═══════════════════════════════════════════════════════════════════════
+        
+        # When state_company changes, update seg_company and comp_company
+        state_company.change(
+            fn=lambda x: (x, x),
+            inputs=[state_company],
+            outputs=[seg_company, comp_company]
+        )
+        
+        # When state_country changes, update seg_country and comp_country
+        state_country.change(
+            fn=lambda x: (x, x),
+            inputs=[state_country],
+            outputs=[seg_country, comp_country]
+        )
+        
+        # When state_year changes, update seg_year and comp_year
+        state_year.change(
+            fn=lambda x: (x, x),
+            inputs=[state_year],
+            outputs=[seg_year, comp_year]
+        )
+        
+        # When state_context (offerings) changes, update seg_offerings
+        state_context.change(
+            fn=lambda x: x,
+            inputs=[state_context],
+            outputs=[seg_offerings]
+        )
+        
+        # When state_sizing_summary changes, update seg_market_sizing and comp_sizing_ref
+        state_sizing_summary.change(
+            fn=lambda x: (x, x),
+            inputs=[state_sizing_summary],
+            outputs=[seg_market_sizing, comp_sizing_ref]
+        )
+        
+        # When state_seg_summary changes, update comp_seg_ref
+        state_seg_summary.change(
+            fn=lambda x: x,
+            inputs=[state_seg_summary],
+            outputs=[comp_seg_ref]
+        )
 
     # Monkey patch launch() to default include theme and css
     # This solves the depreciation warning while keeping the specialized KPMG branding by default
