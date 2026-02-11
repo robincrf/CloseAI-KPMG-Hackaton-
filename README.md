@@ -1,4 +1,4 @@
-sour# Projet RAG - HACK KPMG
+Projet RAG - HACK KPMG
 ---
 
 ## À LIRE ABSOLUMENT (Avant toute modification)
