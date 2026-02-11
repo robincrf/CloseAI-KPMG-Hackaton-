@@ -137,8 +137,8 @@ def launch_dashboard(rag_stream_function):
                 
                 with gr.Row():
                     ctx_company = gr.Textbox(
-                        label="Entreprise Cible",
-                        placeholder="ex: Doctolib, Alan, Qonto...",
+                        label="Entreprise Cible (optionnel)",
+                        placeholder="Laissez vide pour une analyse sectorielle globale, ou ex: Doctolib, Alan...",
                         value=""
                     )
                     ctx_country = gr.Dropdown(
@@ -233,20 +233,45 @@ def launch_dashboard(rag_stream_function):
                 
                 # HANDLER
                 def run_contextual_sizing(company, country, year, additional):
-                    if not company.strip():
-                        return (
-                            "<div style='color:#FF5252; padding:20px;'>Veuillez entrer un nom d'entreprise.</div>",
-                            "", "", "", "", "", "", "", "", "", "", "", "", "", "", "",
-                            "", "France", "2025", "", ""  # States unchanged on error
-                        )
-                    
                     from strategic_facts_service import strategic_facts_service
-                    result = strategic_facts_service.generate_contextual_market_sizing(
-                        company_name=company.strip(),
-                        country=country.strip(),
-                        year=year.strip(),
-                        additional_context=additional.strip()
-                    )
+                    
+                    # MODE SECTORIEL (sans entreprise) vs MODE CONTEXTUEL (avec entreprise)
+                    is_sectoral_mode = not company.strip()
+                    
+                    if is_sectoral_mode:
+                        # Mode sectoriel : l'utilisateur n'a pas spécifié d'entreprise
+                        # On utilise le contexte additionnel comme description du marché
+                        market_description = additional.strip() if additional.strip() else "Marché non spécifié"
+                        
+                        if market_description == "Marché non spécifié":
+                            return (
+                                "<div style='color:#FFAB00; padding:20px; background:#1E1E1E; border-radius:10px;'>"
+                                "<b>⚠️ Mode Sectoriel</b><br/>"
+                                "Veuillez préciser le marché à analyser dans le champ 'Contexte Additionnel'.<br/>"
+                                "Exemple : 'Téléconsultation médicale', 'SaaS RH', 'Logiciels ERP PME'..."
+                                "</div>",
+                                "", "", "", "", "", "", "", "", "", "", "", "", "", "", "",
+                                "", "France", "2025", "", ""
+                            )
+                        
+                        result = strategic_facts_service.generate_sectoral_market_sizing(
+                            market_description=market_description,
+                            country=country.strip(),
+                            year=year.strip(),
+                            additional_context=""  # Déjà utilisé comme description
+                        )
+                        
+                        # Pour la suite, on simule company = description du marché
+                        company_display = f"[SECTORIEL] {market_description}"
+                    else:
+                        # Mode contextuel : analyse centrée sur une entreprise spécifique
+                        result = strategic_facts_service.generate_contextual_market_sizing(
+                            company_name=company.strip(),
+                            country=country.strip(),
+                            year=year.strip(),
+                            additional_context=additional.strip()
+                        )
+                        company_display = company.strip()
                     
                     if not result.get("success"):
                         error_msg = result.get("error", "Erreur inconnue")
@@ -258,20 +283,50 @@ def launch_dashboard(rag_stream_function):
                     
                     analysis = result.get("analysis", {})
                     
-                    # 1. CONTEXT LOCK
+                    # 1. CONTEXT LOCK - Adapté selon le mode
                     ctx = analysis.get("context_lock", {})
-                    ctx_html = f"""
-                    <div style="background: #1E1E1E; padding: 20px; border-radius: 10px; border-left: 4px solid #0091DA;">
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-                            <div><span style="opacity: 0.7;">Entreprise:</span> <b style="color: #0091DA;">{ctx.get('company', 'N/A')}</b></div>
-                            <div><span style="opacity: 0.7;">Pays:</span> <b>{country}</b></div>
-                            <div><span style="opacity: 0.7;">Année:</span> <b>{year}</b></div>
-                            <div><span style="opacity: 0.7;">Modèle Local:</span> <b>{ctx.get('local_business_model', 'N/A')[:50]}...</b></div>
+                    
+                    if is_sectoral_mode:
+                        # Mode sectoriel : affichage différent
+                        ctx_html = f"""
+                        <div style="background: #1E1E1E; padding: 20px; border-radius: 10px; border-left: 4px solid #4ADE80;">
+                            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px;">
+                                <span style="background: #4ADE80; color: #0F172A; padding: 4px 12px; border-radius: 15px; font-weight: bold; font-size: 0.8em;">MODE SECTORIEL</span>
+                                <span style="opacity: 0.7;">Estimation de la taille totale du marché (TAM)</span>
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                                <div><span style="opacity: 0.7;">Marché:</span> <b style="color: #4ADE80;">{ctx.get('market_description', market_description)}</b></div>
+                                <div><span style="opacity: 0.7;">Pays:</span> <b>{country}</b></div>
+                                <div><span style="opacity: 0.7;">Année:</span> <b>{year}</b></div>
+                            </div>
+                            <div style="margin-top: 10px; padding: 10px; background: rgba(74, 222, 128, 0.1); border-radius: 8px; font-size: 0.9em;">
+                                💡 <b>Interprétation:</b> La valeur estimée représente le chiffre d'affaires annuel total du marché pour TOUS les acteurs confondus.
+                            </div>
                         </div>
-                        <div style="margin-top: 10px;"><span style="opacity: 0.7;">Offres pertinentes:</span> {', '.join(ctx.get('company_offerings', []))}</div>
-                        {"<div style='color: #FFAB00; margin-top: 10px;'>Infos manquantes: " + ', '.join(ctx.get('missing_info', [])) + "</div>" if ctx.get('missing_info') else ""}
-                    </div>
-                    """
+                        """
+                    else:
+                        # Mode contextuel : affichage centré entreprise
+                        local_bm = ctx.get('local_business_model', 'N/A')
+                        local_bm_display = (local_bm[:50] + '...') if len(str(local_bm)) > 50 else local_bm
+                        ctx_html = f"""
+                        <div style="background: #1E1E1E; padding: 20px; border-radius: 10px; border-left: 4px solid #0091DA;">
+                            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px;">
+                                <span style="background: #0091DA; color: white; padding: 4px 12px; border-radius: 15px; font-weight: bold; font-size: 0.8em;">MODE ENTREPRISE</span>
+                                <span style="opacity: 0.7;">Estimation du potentiel captible (SAM/SOM)</span>
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                                <div><span style="opacity: 0.7;">Entreprise:</span> <b style="color: #0091DA;">{ctx.get('company', 'N/A')}</b></div>
+                                <div><span style="opacity: 0.7;">Pays:</span> <b>{country}</b></div>
+                                <div><span style="opacity: 0.7;">Année:</span> <b>{year}</b></div>
+                                <div><span style="opacity: 0.7;">Modèle Local:</span> <b>{local_bm_display}</b></div>
+                            </div>
+                            <div style="margin-top: 10px;"><span style="opacity: 0.7;">Offres pertinentes:</span> {', '.join(ctx.get('company_offerings', []))}</div>
+                            {"<div style='color: #FFAB00; margin-top: 10px;'>Infos manquantes: " + ', '.join(ctx.get('missing_info', [])) + "</div>" if ctx.get('missing_info') else ""}
+                            <div style="margin-top: 10px; padding: 10px; background: rgba(0, 145, 218, 0.1); border-radius: 8px; font-size: 0.9em;">
+                                💡 <b>Interprétation:</b> La valeur estimée représente le chiffre d'affaires annuel potentiel captable par l'entreprise sur ce marché.
+                            </div>
+                        </div>
+                        """
                     
                     # 2. MARKET DEFINITION
                     mkt = analysis.get("market_definition", {})
@@ -323,6 +378,15 @@ def launch_dashboard(rag_stream_function):
                     # 4. BOTTOM-UP COMPONENTS
                     bu = analysis.get("bottom_up_reconstruction", {})
                     
+                    # Helper pour formater les nombres de manière sécurisée
+                    def fmt_num(val, default='N/A'):
+                        """Formate un nombre avec séparateurs de milliers, ou retourne N/A"""
+                        if val is None:
+                            return default
+                        if isinstance(val, (int, float)):
+                            return f"{val:,.0f}"
+                        return str(val)
+                    
                     # Economic Unit
                     eu = bu.get("economic_unit", {})
                     eu_html = f"""
@@ -336,18 +400,18 @@ def launch_dashboard(rag_stream_function):
                     # Addressable Population
                     ap = bu.get("addressable_population", {})
                     filters = ap.get("filters_applied", [])
-                    filters_html = "".join([f"<div style='padding: 5px; background: rgba(0,0,0,0.2); margin: 3px 0; border-radius: 4px; display: flex; justify-content: space-between;'><span>{f.get('filter_name', '')}: {f.get('filter_value', '')}</span><span style='color: #0091DA;'>→ {f.get('remaining_units', 'N/A'):,}</span></div>" for f in filters])
+                    filters_html = "".join([f"<div style='padding: 5px; background: rgba(0,0,0,0.2); margin: 3px 0; border-radius: 4px; display: flex; justify-content: space-between;'><span>{f.get('filter_name', '')}: {f.get('filter_value', '')}</span><span style='color: #0091DA;'>→ {fmt_num(f.get('remaining_units'))}</span></div>" for f in filters])
                     
                     ap_html = f"""
                     <div style="background: rgba(0,200,83,0.1); padding: 15px; border-radius: 8px; border-left: 3px solid #00C853;">
                         <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
                             <span>Total dans le pays:</span>
-                            <span style="font-weight: bold;">{ap.get('total_units_in_country', 'N/A'):,}</span>
+                            <span style="font-weight: bold;">{fmt_num(ap.get('total_units_in_country'))}</span>
                         </div>
                         <div style="font-size: 0.9em;">{filters_html}</div>
                         <div style="margin-top: 10px; padding: 10px; background: #00C853; color: white; border-radius: 5px; text-align: center;">
                             <div style="font-size: 0.8em;">UNITÉS ÉLIGIBLES</div>
-                            <div style="font-size: 1.5em; font-weight: bold;">{ap.get('final_addressable_units', 'N/A'):,}</div>
+                            <div style="font-size: 1.5em; font-weight: bold;">{fmt_num(ap.get('final_addressable_units'))}</div>
                         </div>
                     </div>
                     """
@@ -356,7 +420,7 @@ def launch_dashboard(rag_stream_function):
                     uv = bu.get("local_unit_value", {})
                     uv_html = f"""
                     <div style="background: rgba(255,171,0,0.1); padding: 15px; border-radius: 8px; border-left: 3px solid #FFAB00;">
-                        <div style="font-size: 1.5em; font-weight: bold; color: #FFAB00;">{uv.get('annual_price_local', 'N/A'):,} {uv.get('currency', 'EUR')}</div>
+                        <div style="font-size: 1.5em; font-weight: bold; color: #FFAB00;">{fmt_num(uv.get('annual_price_local'))} {uv.get('currency', 'EUR')}</div>
                         <div style="font-size: 0.9em; margin-top: 5px;">{uv.get('comparison_vs_reference', 'N/A')}</div>
                         <div style="font-size: 0.8em; opacity: 0.7; margin-top: 5px;">Ajustement: {uv.get('adjustment_rationale', 'N/A')}</div>
                     </div>
@@ -386,8 +450,8 @@ def launch_dashboard(rag_stream_function):
                     </div>
                     """
                     
-                    # 5b. HYPOTHESES DETAILED (NEW)
-                    hypotheses = analysis.get("hypotheses_detailed", [])
+                    # 5b. HYPOTHESES DETAILED (NEW) -Updated to use quantified_hypotheses
+                    hypotheses = analysis.get("quantified_hypotheses", [])
                     hyp_html = "<div style='display: grid; gap: 15px;'>"
                     for hyp in hypotheses:
                         benchmarks = hyp.get("benchmark_references", [])
@@ -401,16 +465,23 @@ def launch_dashboard(rag_stream_function):
                         conf_range = hyp.get("confidence_range", {})
                         range_html = f"[{conf_range.get('low', 'N/A')} - {conf_range.get('central', 'N/A')} - {conf_range.get('high', 'N/A')}]" if conf_range else ""
                         
+                        # Updated field names
+                        name = hyp.get('name', hyp.get('variable', 'N/A')).replace('_', ' ').title()
+                        value = hyp.get('value', hyp.get('central_value', 'N/A'))
+                        unit = hyp.get('unit', '')
+                        justif = hyp.get('justification', hyp.get('economic_rationale', 'N/A'))
+                        source = hyp.get('source', 'N/A')
+                        sens = hyp.get('sensitivity',  hyp.get('sensitivity_impact', 'N/A'))
+                        
                         hyp_html += f"""
                         <div style="background: #1E1E1E; padding: 15px; border-radius: 8px; border-left: 3px solid #6200EA;">
                             <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                                <div style="font-weight: bold; color: #F8FAFC;">{hyp.get('variable', 'N/A').replace('_', ' ').title()}</div>
-                                <span style="background: #6200EA; color: white; padding: 2px 10px; border-radius: 10px; font-size: 0.8em;">{hyp.get('central_value', 'N/A')} {hyp.get('unit', '')}</span>
+                                <div style="font-weight: bold; color: #F8FAFC;">{name}</div>
+                                <span style="background: #6200EA; color: white; padding: 2px 10px; border-radius: 10px; font-size: 0.8em;">{value} {unit}</span>
                             </div>
-                            <div style="font-size: 0.85em; color: #CBD5E1; margin-bottom: 8px;">{hyp.get('economic_rationale', 'N/A')}</div>
-                            <div style="font-size: 0.8em; opacity: 0.7;">Intervalle de confiance: {range_html}</div>
-                            {bench_html}
-                            <div style="font-size: 0.75em; color: #FFAB00; margin-top: 8px;">Sensibilité: {hyp.get('sensitivity_impact', 'N/A')}</div>
+                            <div style="font-size: 0.85em; color: #CBD5E1; margin-bottom: 8px;"><b>Justification:</b> {justif}</div>
+                            <div style="font-size: 0.8em; opacity: 0.7;"><b>Source:</b> {source}</div>
+                            <div style="font-size: 0.75em; color: #FFAB00; margin-top: 8px;">Sensibilité: {sens}</div>
                         </div>
                         """
                     if not hypotheses:
@@ -559,9 +630,16 @@ def launch_dashboard(rag_stream_function):
                     
                     scope_html += "</div>"
                     
-                    # 6. VALIDATION CHECKLIST (HTML)
-                    val = analysis.get("validation", {})
-                    checks = val.get("sanity_checks", [])
+                    # 6. VALIDATION CHECKLIST (HTML) - Updated for coherence_checks
+                    # Try new coherence_checks structure first, fallback to old validation
+                    coherence = analysis.get("coherence_checks", {})
+                    old_val = analysis.get("validation", {})
+                    
+                    # Gather all checks from both structures
+                    checks = []
+                    checks.extend(coherence.get("arithmetic_checks", []))
+                    checks.extend(coherence.get("behavioral_checks", []))
+                    checks.extend(old_val.get("sanity_checks", []))  # Fallback
                     
                     check_html = "<div class='check-list'>"
                     for c in checks:
@@ -615,7 +693,7 @@ def launch_dashboard(rag_stream_function):
                     
                     final_html = f"""
                     <div style="background: linear-gradient(135deg, #00338D 0%, #001E55 100%); color: white; padding: 25px; border-radius: 12px;">
-                        <div style="font-size: 0.8em; text-transform: uppercase; opacity: 0.8;">Estimation du Marché - {company} ({country}, {year})</div>
+                        <div style="font-size: 0.8em; text-transform: uppercase; opacity: 0.8;">Estimation du Marché - {company_display} ({country}, {year})</div>
                         <div style="font-size: 2.5em; font-weight: bold; margin: 15px 0;">{fmt_currency(final_val)}</div>
                         <div style="font-size: 1em; opacity: 0.9;">
                             Fourchette: <b>{fmt_currency(range_low)}</b> - <b>{fmt_currency(range_high)}</b>
@@ -697,7 +775,7 @@ def launch_dashboard(rag_stream_function):
                             return f"€{v:,.0f}"
                         return str(v)
                     
-                    sizing_summary = f"""ESTIMATION DU MARCHÉ - {company.upper()} ({country.upper()}, {year})
+                    sizing_summary = f"""ESTIMATION DU MARCHÉ - {company_display.upper()} ({country.upper()}, {year})
 {fmt_curr(final_val)}
 Fourchette: {fmt_curr(range_low)} - {fmt_curr(range_high)}
 Fiabilité: {conf}""".strip()
@@ -766,8 +844,8 @@ Fiabilité: {conf}""".strip()
                         gr.Markdown("#### Paramètres")
                         with gr.Row():
                             seg_company = gr.Textbox(
-                                label="Entreprise de Référence",
-                                placeholder="ex: Doctolib, Alan, Qonto...",
+                                label="Entreprise de Référence (optionnel en mode sectoriel)",
+                                placeholder="ex: Doctolib, Alan, Qonto... Laisser vide pour une analyse sectorielle",
                                 value=""
                             )
                             seg_country = gr.Dropdown(
@@ -802,11 +880,15 @@ Fiabilité: {conf}""".strip()
                         On segmente les **ENTREPRISES** qui captent la valeur, 
                         **pas les clients**.
                         
+                        ##### 🎯 Mode Sectoriel
+                        L'entreprise de référence est **optionnelle**. 
+                        Laisser vide pour une analyse sectorielle sans positionnement spécifique.
+                        
                         ##### 📋 Cette analyse va produire :
                         -  Logique de segmentation retenue
                         -  4-8 segments d'entreprises
                         -  Lien chiffré avec le sizing
-                        -  Positionnement de l'entreprise
+                        -  Positionnement de l'entreprise (si spécifiée)
                         -  Carte du marché par acteurs
                         -  Fiabilité & limites
                         """)
@@ -849,9 +931,10 @@ Fiabilité: {conf}""".strip()
                 
                 # HANDLER
                 def run_company_segmentation(company, offerings, country, year, market_sizing):
-                    if not company.strip() or not offerings.strip():
+                    # MODE SECTORIEL: L'entreprise de référence est maintenant OPTIONNELLE
+                    if not offerings.strip():
                         return (
-                            "<div style='color:#FF5252; padding:20px;'>Veuillez entrer une entreprise et son offre.</div>",
+                            "<div style='color:#FF5252; padding:20px;'>Veuillez entrer au minimum l'offre/périmètre fonctionnel. L'entreprise de référence est optionnelle en mode sectoriel.</div>",
                             "", None, None, None, None, "", "", "", "", "", None, None
                         )
                     
@@ -863,7 +946,7 @@ Fiabilité: {conf}""".strip()
                     
                     from strategic_facts_service import strategic_facts_service
                     result = strategic_facts_service.generate_market_segmentation(
-                        company_name=company.strip(),
+                        company_name=company.strip() if company else "",  # Mode sectoriel si vide
                         offerings=offerings.strip(),
                         country=country.strip(),
                         year=year.strip(),
@@ -881,10 +964,12 @@ Fiabilité: {conf}""".strip()
                     
                     # 1. CONTEXT LOCK + SIZING SUMMARY
                     ctx = analysis.get("context_lock", {})
+                    ref_company = ctx.get('reference_company', 'N/A')
+                    is_sectorial = not ref_company or ref_company == 'N/A' or ref_company.strip() == ''
                     ctx_html = f"""
-                    <div style="background: #1E1E1E; padding: 20px; border-radius: 10px; border-left: 4px solid #0091DA;">
+                    <div style="background: #1E1E1E; padding: 20px; border-radius: 10px; border-left: 4px solid {'#FFAB00' if is_sectorial else '#0091DA'};">
                         <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 15px; margin-bottom: 15px;">
-                            <div><span style="opacity: 0.7;">Entreprise:</span> <b style="color: #0091DA;">{ctx.get('reference_company', 'N/A')}</b></div>
+                            <div><span style="opacity: 0.7;">Entreprise:</span> <b style="color: {'#FFAB00' if is_sectorial else '#0091DA'};">{'🎯 Mode Sectoriel' if is_sectorial else ref_company}</b></div>
                             <div><span style="opacity: 0.7;">Pays:</span> <b>{ctx.get('country', 'N/A')}</b></div>
                             <div><span style="opacity: 0.7;">Année:</span> <b>{ctx.get('year', 'N/A')}</b></div>
                             <div><span style="opacity: 0.7;">Offre:</span> <b>{ctx.get('offering_scope', 'N/A')}</b></div>
@@ -1325,7 +1410,7 @@ Fiabilité: {conf}""".strip()
                 
                 # CONTEXT INPUTS (Like other modules)
                 with gr.Row():
-                    comp_company = gr.Textbox(label="Entreprise de Référence", placeholder="Ex: Salesforce")
+                    comp_company = gr.Textbox(label="Entreprise de Référence (optionnel en mode sectoriel)", placeholder="Ex: Salesforce - Laisser vide pour une analyse sectorielle")
                     comp_country = gr.Textbox(label="Pays/Marché", placeholder="Ex: France")
                     comp_year = gr.Textbox(label="Année", placeholder="Ex: 2024")
                 
@@ -1381,15 +1466,16 @@ Fiabilité: {conf}""".strip()
                     import plotly.graph_objects as go
                     from strategic_facts_service import strategic_facts_service
                     
-                    if not company or not country or not year:
+                    # MODE SECTORIEL: L'entreprise de référence est maintenant OPTIONNELLE
+                    if not country or not year:
                         return (
-                            "<div style='color: #FF5252;'>Veuillez remplir tous les champs obligatoires (Entreprise, Pays, Année).</div>",
+                            "<div style='color: #FF5252;'>Veuillez remplir au minimum le Pays et l'Année. L'entreprise de référence est optionnelle en mode sectoriel.</div>",
                             "", "", None, "", "", "", "", ""
                         )
                     
                     # 1. Call the new dynamic service
                     result = strategic_facts_service.generate_competitive_analysis(
-                        company_name=company,
+                        company_name=company.strip() if company else "",  # Mode sectoriel si vide
                         country=country,
                         year=year,
                         market_sizing_context=sizing_ctx,
@@ -1407,11 +1493,13 @@ Fiabilité: {conf}""".strip()
                     
                     # 2. CONTEXT SUMMARY HTML
                     ctx = analysis.get("context_summary", {})
+                    ref_company = ctx.get('reference_company', company)
+                    is_sectorial = not ref_company or ref_company.strip() == ''
                     ctx_html = f"""
-                    <div style="background: rgba(0,145,218,0.1); padding: 15px; border-radius: 10px; border-left: 3px solid #0091DA;">
+                    <div style="background: rgba(0,145,218,0.1); padding: 15px; border-radius: 10px; border-left: 3px solid {'#FFAB00' if is_sectorial else '#0091DA'};">
                         <div style="display: flex; justify-content: space-between; align-items: center;">
                             <div>
-                                <div style="font-weight: bold; font-size: 1.2em;">🏢 {ctx.get('reference_company', company)}</div>
+                                <div style="font-weight: bold; font-size: 1.2em;">{'🎯 Mode Sectoriel' if is_sectorial else '🏢 ' + ref_company}</div>
                                 <div style="opacity: 0.8; margin-top: 5px;">{ctx.get('market_scope', 'Périmètre non défini')}</div>
                             </div>
                             <div style="text-align: right; opacity: 0.7;">

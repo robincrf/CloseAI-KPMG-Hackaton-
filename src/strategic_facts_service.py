@@ -63,6 +63,115 @@ class StrategicFactsService:
             return False
         return datetime.now() - self._cache_timestamps[key] < self._cache_ttl
     
+    def _is_aged_source(self, source_date: str) -> bool:
+        """Vérifie si une source est considérée comme datée (>3 ans)."""
+        try:
+            if not source_date:
+                return True
+            year = int(source_date) if source_date.isdigit() else int(source_date.split("-")[0])
+            current_year = datetime.now().year
+            return (current_year - year) > 3
+        except:
+            return True
+    
+    def _validate_source_quality(self, facts: List[Dict]) -> Dict[str, Any]:
+        """
+        Valide la qualité des sources et génère des alertes.
+        
+        Returns:
+            {
+                "is_valid": bool,
+                "quality_score": 0-100,
+                "warnings": List[str],
+                "critical_gaps": List[str],
+                "primary_sources_count": int,
+                "secondary_sources_count": int,
+                "proxy_sources_count": int
+            }
+        """
+        warnings = []
+        critical_gaps = []
+        score = 100
+        
+        primary_count = 0
+        secondary_count = 0
+        proxy_count = 0
+        
+        for fact in facts:
+            source_name = fact.get("source_name", "") or fact.get("source", "")
+            source_type = fact.get("source_type", "").lower()
+            
+            # Comptage par type
+            if source_type == "primaire":
+                primary_count += 1
+            elif source_type == "secondaire":
+                secondary_count += 1
+            elif source_type == "proxy":
+                proxy_count += 1
+            
+            # Validation source_name
+            if not source_name or source_name in ["N/A", "Estimation", "Analyse"]:
+                critical_gaps.append(f"{fact.get('key', 'Unknown')}: Source manquante ou générique")
+                score -= 15
+            
+            # Validation source_date
+            source_date = fact.get("source_date", "")
+            if not source_date:
+                warnings.append(f"{fact.get('key', 'Unknown')}: Date de source manquante")
+                score -= 10
+            elif self._is_aged_source(source_date):
+                warnings.append(f"{fact.get('key', 'Unknown')}: Source datée ({source_date})")
+                score -= 5
+            
+            # Validation périmètre géographique pour ajustements
+            if fact.get("is_global_adjusted") and not fact.get("adjustment_method"):
+                critical_gaps.append(f"{fact.get('key', 'Unknown')}: Ajustement géographique non documenté")
+                score -= 20
+            
+            # Validation source_reference
+            if source_name and source_name not in ["N/A", "Estimation", "Analyse"]:
+                if not fact.get("source_reference"):
+                    warnings.append(f"{fact.get('key', 'Unknown')}: Référence précise manquante pour {source_name}")
+                    score -= 5
+        
+        return {
+            "is_valid": len(critical_gaps) == 0,
+            "quality_score": max(0, score),
+            "warnings": warnings,
+            "critical_gaps": critical_gaps,
+            "primary_sources_count": primary_count,
+            "secondary_sources_count": secondary_count,
+            "proxy_sources_count": proxy_count
+        }
+    
+    # Secteurs régulés (pour détection automatique)
+    REGULATED_SECTORS = {
+        "healthcare": ["téléconsultation", "e-santé", "dispositif médical", "télémédecine", "santé"],
+        "finance": ["paiement", "assurance", "crédit", "banque", "fintech"],
+        "energy": ["électricité", "gaz", "énergie renouvelable"],
+        "transport": ["taxi", "vtc", "mobilité"],
+        "education": ["formation", "éducation", "enseignement"]
+    }
+    
+    def _detect_regulatory_context(self, market_name: str) -> Dict[str, Any]:
+        """Détecte si le marché est régulé et quel secteur."""
+        market_lower = market_name.lower()
+        
+        for sector, keywords in self.REGULATED_SECTORS.items():
+            if any(kw in market_lower for kw in keywords):
+                return {
+                    "is_regulated": True,
+                    "sector": sector,
+                    "requires_documentation": True,
+                    "detected_keywords": [kw for kw in keywords if kw in market_lower]
+                }
+        
+        return {
+            "is_regulated": False,
+            "sector": None,
+            "requires_documentation": False
+        }
+    
     def _format_financial_context(self, facts: Dict[str, Any]) -> str:
         """
         Formate les données financières pour enrichir le prompt LLM.
@@ -994,6 +1103,462 @@ Réponds UNIQUEMENT avec du JSON valide, aucun texte autour.
         
         return facts
 
+    def generate_sectoral_market_sizing(self, market_description: str, country: str, year: str, additional_context: str = "") -> Dict[str, Any]:
+        """
+        MÉTHODE DE MARKET SIZING SECTORIEL - Sans entreprise cible
+        
+        Contrairement à generate_contextual_market_sizing qui calcule le potentiel captif
+        par une entreprise spécifique (SOM), cette méthode estime la TAILLE TOTALE du marché
+        (TAM/SAM) de manière agnostique.
+        
+        Méthodologie :
+        1. Définition du périmètre sectoriel
+        2. Estimation multi-méthodes (Top-Down, Bottom-Up, Supply-Led)
+        3. Triangulation des résultats
+        4. Structure du marché (segments, acteurs types)
+        
+        Args:
+            market_description: Description du marché (ex: "Téléconsultation médicale")
+            country: Pays / zone géographique
+            year: Année de référence
+            additional_context: Contexte additionnel (régulation, périmètre, etc.)
+            
+        Returns:
+            Analyse structurée avec estimation TAM/SAM sectorielle
+        """
+        print(f"📊 [SECTORAL SIZING] Marché: {market_description} | Pays: {country} | Année: {year}")
+        
+        prompt = ChatPromptTemplate.from_template("""
+Tu es un assistant d'analyse stratégique senior utilisé par un cabinet de conseil de premier plan.
+Tu dois estimer la taille d'un MARCHÉ SECTORIEL, sans te focaliser sur une entreprise spécifique.
+Tu calcules la VALEUR TOTALE DU MARCHÉ (TAM/SAM), pas le potentiel d'un acteur particulier.
+
+═══════════════════════════════════════════════════════════════
+📌 CONTEXTE À ANALYSER
+═══════════════════════════════════════════════════════════════
+Marché / Secteur : {market_description}
+Pays / Zone : {country}
+Année : {year}
+Contexte additionnel : {additional_context}
+═══════════════════════════════════════════════════════════════
+
+🔒 MODE SECTORIEL : Tu ne te concentres PAS sur une entreprise.
+Tu estimes la TAILLE TOTALE du marché pour TOUS les acteurs confondus.
+
+⚠️ VALIDATION STRICTE DES SOURCES ⚠️
+
+Pour CHAQUE fact utilisé dans "facts_used", tu DOIS OBLIGATOIREMENT fournir :
+
+✅ OBLIGATOIRE :
+1. **source_name** : Nom complet de l'organisation/étude (ex: "INSEE", "Grand View Research")
+2. **source_reference** : Référence précise du document
+3. **source_date** : Année de publication - OBLIGATOIRE
+4. **source_type** : "primaire" | "secondaire" | "proxy"
+5. **confidence** : "high" | "medium" | "low"
+
+📋 SOURCES INTERDITES :
+❌ "Estimation" sans méthodologie détaillée
+❌ "Analyse sectorielle" sans nom d'étude précis
+❌ Ratios géographiques arbitraires (ex: "8% pour la France")
+❌ Sources > 3 ans sans justification explicite dans "notes"
+
+🚨 AJUSTEMENTS GÉOGRAPHIQUES :
+Si tu utilises une donnée mondiale et l'ajustes au pays :
+- Dans "facts_used" : documenter la source mondiale
+- Dans "estimation_methods.top_down" : OBLIGATOIRE documenter "country_ratio_source"
+
+📋 FORMAT DE SORTIE JSON STRICT :
+{{
+    "context_lock": {{
+        "mode": "sectoral",
+        "market_description": "{market_description}",
+        "country": "{country}",
+        "year": "{year}",
+        "scope_validated": true
+    }},
+    
+    "market_definition": {{
+        "market_name": "Nom standardisé du marché (ex: 'E-santé - Segment Téléconsultation')",
+        "market_justification": "Justification du périmètre retenu",
+        "perimeter": {{
+            "value_type": "revenu_final (CA des acteurs)",
+            "inclusions": ["Inclus 1", "Inclus 2"],
+            "exclusions": ["Exclu 1", "Exclu 2"]
+        }},
+        "local_adaptations": {{
+            "maturity_level": "emerging|growing|mature",
+            "regulatory_context": "Cadre réglementaire local pertinent"
+        }}
+    }},
+    
+    "facts_used": [
+        {{
+            "fact_id": "FACT_001",
+            "key": "population_cible",
+            "description": "Description précise du fait",
+            "value": 67000000,
+            "unit": "personnes",
+            "source": "INSEE 2024",
+            "source_type": "primaire",
+            "confidence": "high",
+            "notes": "Population totale France métropolitaine"
+        }}
+    ],
+    
+    "estimation_methods": {{
+        "top_down": {{
+            "global_market_value": 1500000000,
+            "global_source": "Grand View Research 2024",
+            "country_ratio": 0.08,
+            "country_ratio_source": "Eurostat - Part PIB France/Monde",
+            "result": 120000000,
+            "confidence": "medium",
+            "methodology": "TAM Monde x Part Pays"
+        }},
+        "bottom_up": {{
+            "addressable_units": 500000,
+            "unit_definition": "Actes de téléconsultation par an",
+            "average_price": 25,
+            "price_source": "Tarification conventionnée CNAM",
+            "result": 125000000,
+            "confidence": "high",
+            "methodology": "Volume x Prix Moyen"
+        }},
+        "supply_led": {{
+            "top_players_revenue": 80000000,
+            "top_players_names": ["Acteur A", "Acteur B", "Acteur C"],
+            "estimated_market_share": 0.65,
+            "market_share_source": "Estimation IDC/Gartner",
+            "result": 123000000,
+            "confidence": "medium",
+            "methodology": "CA Leaders / Part de Marché"
+        }}
+    }},
+    
+    "triangulation": {{
+        "simple_average": 122666667,
+        "weighted_average": 123500000,
+        "weighting_rationale": "Bottom-up privilégié (données primaires France)",
+        "confidence_assessment": "Convergence des 3 méthodes à ±3%, fiabilité haute"
+    }},
+    
+    "market_structure": {{
+        "concentration": "fragmenté|moyennement_concentré|oligopole",
+        "top_players": [
+            {{
+                "name": "Leader A",
+                "estimated_share": 25,
+                "typology": "leader|challenger|niche",
+                "business_model": "SaaS|transactionnel|mixte"
+            }}
+        ],
+        "long_tail_estimate": "40% du marché détenu par acteurs < 5M€ CA"
+    }},
+    
+    "segmentation": {{
+        "by_client": [
+            {{"segment": "B2C - Particuliers", "weight_pct": 60}},
+            {{"segment": "B2B - Entreprises", "weight_pct": 40}}
+        ],
+        "by_offering": [
+            {{"segment": "Consultations synchrones", "weight_pct": 70}},
+            {{"segment": "Suivi asynchrone", "weight_pct": 30}}
+        ]
+    }},
+    
+    "growth_dynamics": {{
+        "cagr_estimate": 12.5,
+        "cagr_source": "Moyenne McKinsey/BCG/Gartner",
+        "cagr_period": "2024-2028",
+        "key_drivers": [
+            {{"driver": "Remboursement élargi", "impact": "high", "direction": "positive"}},
+            {{"driver": "Digitalisation santé", "impact": "medium", "direction": "positive"}}
+        ],
+        "risks": [
+            {{"risk": "Régulation restrictive", "impact": "medium", "probability": "low"}}
+        ]
+    }},
+    
+    "calculation": {{
+        "formula": "Triangulation multi-méthodes",
+        "step_by_step": [
+            "1. Top-Down: 1.5Md€ (Monde) x 8% → 120M€",
+            "2. Bottom-Up: 500k actes x 25€ → 125M€",
+            "3. Supply-Led: 80M€ (Top 3) / 65% → 123M€",
+            "4. Triangulation pondérée → 123.5M€"
+        ],
+        "final_estimate": {{
+            "value": 123500000,
+            "unit": "EUR",
+            "year": "{year}",
+            "range_low": 110000000,
+            "range_high": 140000000
+        }}
+    }},
+    
+    "reliability": {{
+        "overall_confidence": "MEDIUM",
+        "data_quality_score": 70,
+        "hypothesis_count": 3,
+        "key_uncertainties": [
+            "Périmètre exact des actes inclus",
+            "Part des acteurs non déclarés"
+        ],
+        "limitations": [
+            "Pas de données Nielsen/IRI spécifiques",
+            "Extrapolation taux de croissance"
+        ]
+    }},
+    
+    "sources_registry": [
+        {{
+            "source_name": "INSEE",
+            "source_reference": "Statistiques population 2024",
+            "data_used": "Population totale",
+            "date": "2024"
+        }}
+    ],
+    
+    "quantified_hypotheses": [
+        {{
+            "hypothesis_id": "HYP_001",
+            "name": "Prix moyen du marché",
+            "value": 25,
+            "unit": "EUR",
+            "justification": "Moyenne pondérée des tarifs pratiqués selon segments",
+            "source": "Étude tarifaire sectorielle XYZ 2024",
+            "sensitivity": "HIGH",
+            "range_low": 20,
+            "range_high": 30
+        }}
+    ],
+    
+    "source_quality_audit": {{
+        "primary_sources_count": 2,
+        "secondary_sources_count": 3,
+        "proxy_sources_count": 1,
+        "missing_sources": [],
+        "aged_sources": [],
+        "overall_source_quality": "HIGH|MEDIUM|LOW",
+        "critical_gaps": []
+    }},
+    
+    "coherence_checks": {{
+        "triangulation_convergence": {{
+            "top_down_vs_bottom_up_delta_pct": 4.2,
+            "status": "PASS",
+            "threshold": 20,
+            "notes": "Écart <20% considéré comme convergent"
+        }},
+        "arithmetic_checks": [
+            {{
+                "check": "Volume × Prix = Revenu",
+                "status": "PASS"
+            }}
+        ],
+        "market_sum_check": {{
+            "check": "Sum(parts de marché) ≤ 100%",
+            "total_share": 85,
+            "status": "PASS"
+        }},
+        "overall_coherence": "HIGH|MEDIUM|LOW"
+    }},
+    
+    "regulatory_impact": {{
+        "is_regulated_market": true,
+        "regulatory_bodies": ["Organisme 1", "Organisme 2"],
+        "key_mechanisms": [
+            {{
+                "mechanism": "Remboursement / Tarification régulée",
+                "impact_on_tam": "Limite le prix moyen pratiqué",
+                "quantified_impact": "Plafonne à 25€ vs 35€ en marché libre"
+            }}
+        ],
+        "recent_changes": [],
+        "uncertainties": []
+    }},
+    
+    "scope_analysis": {{
+        "chosen_scope": "Téléconsultations synchrones uniquement",
+        "scope_stance": "conservative",
+        "scope_rationale": "Focus sur le segment le plus mature pour limiter l'incertitude",
+        "alternatives_considered": [
+            {{
+                "scope": "Inclure télé-expertise asynchrone",
+                "reason_excluded": "Modèle tarifaire différent, régulation distincte",
+                "additional_value_estimate": 50000000,
+                "confidence": "LOW"
+            }}
+        ]
+    }},
+    
+    "strategic_implications": {{
+        "market_attractiveness": "Marché en croissance (+12% CAGR), concentration modérée",
+        "entry_barriers": "Réglementation santé, certification HDS, partenariats remboursement",
+        "key_success_factors": ["Intégration parcours patient", "Tarification", "Réseau praticiens"]
+    }}
+}}
+
+🚨 RÈGLES STRICTES MODE SECTORIEL :
+1. Tu ne calcules PAS de SOM (pas d'entreprise cible)
+2. Tu TRIANGULES obligatoirement 3 méthodes
+3. Tu LISTES les principaux acteurs et leurs parts estimées
+4. Tu FOURNIS une fourchette (range_low / range_high)
+
+Réponds UNIQUEMENT avec du JSON valide, aucun texte autour.
+""")
+        
+        try:
+            llm = self._get_llm()
+            chain = prompt | llm
+            response = chain.invoke({
+                "market_description": market_description,
+                "country": country,
+                "year": year,
+                "additional_context": additional_context or "Pas de contexte additionnel fourni."
+            })
+            
+            # Parsing du JSON
+            content = response.content.strip()
+            if content.startswith("```json"):
+                content = content.replace("```json", "").replace("```", "")
+            if content.startswith("```"):
+                content = content.replace("```", "")
+            
+            analysis = json.loads(content)
+            
+            # Ajouter métadonnées
+            analysis["_meta"] = {
+                "mode": "sectoral",
+                "market": market_description,
+                "country": country,
+                "year": year,
+                "generated_at": datetime.now().isoformat(),
+                "model": "mistral-small",
+                "methodology": "KPMG Sectoral Market Sizing v1.0"
+            }
+            
+            # ═════════════════════════════════════════════
+            # VALIDATION DE QUALITÉ (même que mode contextuel)
+            # ═════════════════════════════════════════════
+            facts_used = analysis.get("facts_used", [])
+            source_quality = self._validate_source_quality(facts_used)
+            
+            if "source_quality_audit" not in analysis:
+                analysis["source_quality_audit"] = {}
+            analysis["source_quality_audit"].update(source_quality)
+    
+            print(f"📊 [SOURCE QUALITY] Score: {source_quality['quality_score']}/100")
+            if source_quality['critical_gaps']:
+                print(f"⚠️ [SOURCE QUALITY] Gaps critiques: {len(source_quality['critical_gaps'])}")
+            
+            # Auto-downgrade confiance si gaps
+            if not source_quality['is_valid']:
+                reliability = analysis.get("reliability", {})
+                current_conf = reliability.get("overall_confidence", "MEDIUM").upper()
+                
+                if current_conf == "HIGH":
+                    reliability["overall_confidence"] = "MEDIUM"
+                    reliability["confidence_justification"] = f"[AUTO-DÉGRADÉE] Gaps sources. " + reliability.get("confidence_justification", "")
+                    print(f"⚠️ [AUTO-DOWNGRADE] HIGH → MEDIUM")
+                elif current_conf == "MEDIUM":
+                    reliability["overall_confidence"] = "LOW"
+                    reliability["confidence_justification"] = f"[AUTO-DÉGRADÉE] Gaps sources. " + reliability.get("confidence_justification", "")
+                    print(f"⚠️ [AUTO-DOWNGRADE] MEDIUM → LOW")
+                
+                analysis["reliability"] = reliability
+            
+            # Détection marché régulé
+            market_name = analysis.get("market_definition", {}).get("market_name", market_description)
+            regulatory_detection = self._detect_regulatory_context(market_name)
+            
+            if regulatory_detection['is_regulated']:
+                print(f"🏛️ [REGULATORY] Marché régulé: {regulatory_detection['sector']}")
+                
+                regulatory_impact = analysis.get("regulatory_impact", {})
+                if not regulatory_impact or not regulatory_impact.get("key_mechanisms"):
+                    print(f"⚠️ [REGULATORY] Impact réglementaire non documenté!")
+                    reliability = analysis.get("reliability", {})
+                    uncertainties = reliability.get("key_uncertainties", [])
+                    uncertainties.append(f"Impact réglementaire non documenté ({regulatory_detection['sector']})")
+                    reliability["key_uncertainties"] = uncertainties
+                    analysis["reliability"] = reliability
+            
+            #
+
+            facts = self._convert_sectoral_sizing_to_facts(analysis, market_description, country, year)
+            
+            print(f"✅ [SECTORAL SIZING] Analyse générée : {len(facts)} facts extraits")
+            
+            return {
+                "analysis": analysis,
+                "facts": facts,
+                "success": True
+            }
+            
+        except json.JSONDecodeError as e:
+            print(f"❌ [SECTORAL SIZING] Erreur parsing JSON: {e}")
+            return {"success": False, "error": f"Parsing error: {e}", "facts": []}
+        except Exception as e:
+            print(f"❌ [SECTORAL SIZING] Erreur: {e}")
+            import traceback
+            traceback.print_exc()
+            return {"success": False, "error": str(e), "facts": []}
+    
+    def _convert_sectoral_sizing_to_facts(self, analysis: Dict, market: str, country: str, year: str) -> List[Dict]:
+        """Convertit l'analyse sectorielle en facts structurés."""
+        facts = []
+        ts = int(datetime.now().timestamp())
+        
+        # 1. Estimation finale (TAM)
+        calc = analysis.get("calculation", {})
+        final = calc.get("final_estimate", {})
+        if final.get("value"):
+            facts.append({
+                "id": f"sec_{country}_{year}_tam_{ts}",
+                "category": "market_estimation",
+                "key": f"tam_{country.lower()}_{year}",
+                "value": final["value"],
+                "unit": final.get("unit", "EUR"),
+                "source": "Triangulation Multi-Méthodes KPMG",
+                "source_type": "Synthèse",
+                "confidence": analysis.get("reliability", {}).get("overall_confidence", "medium").lower(),
+                "notes": f"Marché: {market}, Fourchette: {final.get('range_low', 'N/A')} - {final.get('range_high', 'N/A')} {final.get('unit', 'EUR')}"
+            })
+        
+        # 2. Résultats par méthode
+        methods = analysis.get("estimation_methods", {})
+        for method_name, method_data in methods.items():
+            if method_data.get("result"):
+                facts.append({
+                    "id": f"sec_{method_name}_{ts}",
+                    "category": "market_estimation",
+                    "key": f"tam_{method_name}_{country.lower()}",
+                    "value": method_data["result"],
+                    "unit": "EUR",
+                    "source": method_data.get("methodology", method_name),
+                    "source_type": "Calcul",
+                    "confidence": method_data.get("confidence", "medium"),
+                    "notes": f"Méthode: {method_name}"
+                })
+        
+        # 3. Facts utilisés
+        for fact_data in analysis.get("facts_used", []):
+            if fact_data.get("value"):
+                facts.append({
+                    "id": fact_data.get("fact_id", f"fact_sec_{ts}"),
+                    "category": "market_estimation",
+                    "key": fact_data.get("key", "unknown"),
+                    "value": fact_data["value"],
+                    "unit": fact_data.get("unit", "EUR"),
+                    "source": fact_data.get("source", "Analyse"),
+                    "source_type": fact_data.get("source_type", "secondaire").capitalize(),
+                    "confidence": fact_data.get("confidence", "medium"),
+                    "notes": fact_data.get("notes", "")
+                })
+        
+        return facts
+
     def generate_contextual_market_sizing(self, company_name: str, country: str, year: str, additional_context: str = "") -> Dict[str, Any]:
         """
         MÉTHODE DE MARKET SIZING CONTEXTUEL - Bottom-Up Local
@@ -1034,6 +1599,59 @@ Contexte additionnel : {additional_context}
 
 🔒 RÈGLE FONDAMENTALE : Chaque fact doit être référencé (ID, source, date, pays).
 Aucune donnée non traçable n'est autorisée. Si un fact global est utilisé, tu dois l'ajuster au contexte local et expliquer la méthode.
+
+⚠️ VALIDATION STRICTE DES SOURCES ⚠️
+
+Pour CHAQUE fact utilisé dans "facts_used", tu DOIS OBLIGATOIREMENT fournir :
+
+✅ OBLIGATOIRE :
+1. **source_name** : Nom complet de l'organisation/étude (ex: "INSEE", "DREES", "Eurostat")
+2. **source_reference** : Référence précise du document (ex: "Portrait des professionnels de santé, édition 2024")
+3. **source_date** : Année de publication (ex: "2024") - OBLIGATOIRE
+4. **source_type** : "primaire" | "secondaire" | "proxy"
+5. **reliability** : "HIGH" | "MEDIUM" | "LOW"
+6. **country** : Pays couvert par la source (doit correspondre au contexte)
+
+📋 SOURCES INTERDITES (rejettent automatiquement l'analyse) :
+❌ "Estimation" sans méthodologie détaillée
+❌ "Analyse sectorielle" sans nom d'étude précis
+❌ Ratios géographiques arbitraires (ex: "8% pour la France")
+❌ Sources > 3 ans sans justification explicite dans "notes"
+❌ "N/A", "Analyse", "Rapport générique"
+
+📊 AJUSTEMENTS GÉOGRAPHIQUES :
+Si tu utilises une donnée mondiale/européenne et l'ajustes au pays :
+- **is_global_adjusted** : true
+- **adjustment_method** : OBLIGATOIRE - Explique comment (PIB, population, etc.)
+- **adjustment_rationale** : OBLIGATOIRE - Justifie pourquoi ce ratio est valide
+
+Exemple INVALIDE :
+```json
+{{
+  "source": "Analyse",  // ❌ Trop vague
+  "source_date": "",   // ❌ Manquant
+  "value": 1500000000
+}}
+```
+
+Exemple VALIDE :
+```json
+{{
+  "source_name": "Grand View Research",
+  "source_reference": "Telemedicine Market Size, Share & Trends Analysis Report, 2024",
+  "source_url": "https://www.grandviewresearch.com/...",
+  "source_date": "2024",
+  "source_type": "secondaire",
+  "reliability": "MEDIUM",
+  "country": "Worldwide",
+  "is_global_adjusted": true,
+  "adjustment_method": "PIB France / PB Mondial (2.9%)",
+  "value": 43500000
+}}
+```
+
+🚨 CONSÉQUENCE : Si un fact critique manque de source documentée → **reliability = "LOW" automatique**
+
 
 📋 FORMAT DE SORTIE JSON STRICT :
 {{
@@ -1411,6 +2029,58 @@ Aucune donnée non traçable n'est autorisée. Si un fact global est utilisé, t
             "reliability": "HIGH",
             "date": "2024"
         }}
+    ],
+    
+    "source_quality_audit": {{
+        "primary_sources_count": 3,
+        "secondary_sources_count": 2,
+        "proxy_sources_count": 0,
+        "missing_sources": [],
+        "aged_sources": [],
+        "overall_source_quality": "HIGH|MEDIUM|LOW",
+        "critical_gaps": []
+    }},
+    
+    "coherence_checks": {{
+        "arithmetic_checks": [
+            {{
+                "check": "Volume × Prix = Revenu",
+                "formula": "42000 × 1200 × 0.15 = 7,560,000",
+                "status": "PASS",
+                "notes": "Cohérence arithmétique validée"
+            }}
+        ],
+        "behavioral_checks": [
+            {{
+                "check": "Actes par utilisateur",
+                "derived_value": 0.3,
+                "expected_range": [1.5, 3.0],
+                "status": "WARNING|PASS|FAIL",
+                "justification": "Si WARNING ou FAIL, EXPLIQUER ici pourquoi et ajuster ou assumer"
+            }}
+        ],
+        "logical_checks": [
+            {{
+                "check": "Parts de marché ≤ 100%",
+                "status": "PASS"
+            }}
+        ],
+        "overall_coherence": "HIGH|MEDIUM|LOW"
+    }},
+    
+    "quantified_hypotheses": [
+        {{
+            "hypothesis_id": "HYP_001",
+            "name": "Prix moyen par acte",
+            "value": 25,
+            "unit": "EUR",
+            "justification": "Moyenne des tarifs remboursables selon nomenclature NGAP 2025",
+            "source": "Assurance Maladie - NGAP Téléconsultation",
+            "sensitivity": "HIGH|MEDIUM|LOW|CRITICAL",
+            "range_low": 20,
+            "range_high": 30,
+            "impact_if_changed": "±20% → TAM varie de ±20%"
+        }}
     ]
 }}
 
@@ -1454,7 +2124,71 @@ Réponds UNIQUEMENT avec du JSON valide, aucun texte autour.
                 "methodology": "KPMG Contextual Market Sizing v1.0"
             }
             
-            # Convertir en Facts
+            # ═════════════════════════════════════════════
+            # PHASE 1: VALIDATION DE QUALITÉ DES SOURCES
+            # ═════════════════════════════════════════════
+            facts_used = analysis.get("facts_used", [])
+            source_quality = self._validate_source_quality(facts_used)
+            
+            # Injecter l'audit dans l'analysis
+            if "source_quality_audit" not in analysis:
+                analysis["source_quality_audit"] = {}
+            
+            analysis["source_quality_audit"].update(source_quality)
+            
+            # Logging de qualité
+            print(f"📊 [SOURCE QUALITY] Score: {source_quality['quality_score']}/100")
+            if source_quality['critical_gaps']:
+                print(f"⚠️ [SOURCE QUALITY] Gaps critiques détectés: {len(source_quality['critical_gaps'])}")
+                for gap in source_quality['critical_gaps']:
+                    print(f"   - {gap}")
+            
+            # Dégrader automatiquement la confiance si gaps critiques
+            if not source_quality['is_valid']:
+                reliability = analysis.get("reliability", {})
+                current_confidence = reliability.get("overall_confidence", "MEDIUM").upper()
+                
+                if current_confidence == "HIGH":
+                    reliability["overall_confidence"] = "MEDIUM"
+                    reliability["confidence_justification"] = f"[AUTO-DÉGRADÉE HIGH→MEDIUM] Gaps critiques de sources détectés. " + reliability.get("confidence_justification", "")
+                    print(f"⚠️ [AUTO-DOWNGRADE] Confiance abaissée: HIGH → MEDIUM (gaps de sources)")
+                elif current_confidence == "MEDIUM":
+                    reliability["overall_confidence"] = "LOW"
+                    reliability["confidence_justification"] = f"[AUTO-DÉGRADÉE MEDIUM→LOW] Gaps critiques de sources détectés. " + reliability.get("confidence_justification", "")
+                    print(f"⚠️ [AUTO-DOWNGRADE] Confiance abaissée: MEDIUM → LOW (gaps de sources)")
+                
+                analysis["reliability"] = reliability
+            
+            # ═════════════════════════════════════════════
+            # PHASE 2: DÉTECTION MARCHÉ RÉGULÉ
+            # ═════════════════════════════════════════════
+            market_def = analysis.get("market_definition", {})
+            market_name = market_def.get("market_name", "")
+            
+            regulatory_detection = self._detect_regulatory_context(market_name)
+            
+            if regulatory_detection['is_regulated']:
+                print(f"🏛️ [REGULATORY] Marché régulé détecté: {regulatory_detection['sector']}")
+                
+                # Vérifier si regulatory_impact est documenté
+                regulatory_impact = analysis.get("regulatory_impact", {})
+                if not regulatory_impact or not regulatory_impact.get("key_regulations"):
+                    print(f"⚠️ [REGULATORY] Impact réglementaire non documenté pour marché régulé!")
+                    
+                    # Ajouter warning dans reliability
+                    reliability = analysis.get("reliability", {})
+                    uncertainties = reliability.get("key_uncertainties", [])
+                    uncertainties.append(f"Impact réglementaire non documenté pour marché régulé ({regulatory_detection['sector']})")
+                    reliability["key_uncertainties"] = uncertainties
+                    
+                    # Dégrader confiance si pas déjà LOW
+                    if reliability.get("overall_confidence", "").upper() not in ["LOW"]:
+                        print(f"⚠️ [AUTO-DOWNGRADE] Confiance abaissée (marché régulé sans doc)")
+                    
+                    analysis["reliability"] = reliability
+            
+            #
+
             facts = self._convert_contextual_sizing_to_facts(analysis, company_name, country, year)
             
             print(f"✅ [CONTEXTUAL SIZING] Analyse générée : {len(facts)} facts extraits")

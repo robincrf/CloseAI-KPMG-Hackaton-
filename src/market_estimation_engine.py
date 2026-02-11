@@ -542,3 +542,142 @@ class MarketEstimationEngine:
              return "Dominance Play : Vous visez une part majeure du marché total. Attention à la réaction des incumbents."
         else:
              return "Marché équilibré : Ciblage cohérent avec le potentiel macro."
+
+    def perform_sensitivity_analysis(
+        self, 
+        base_result: EstimationComponent,
+        hypotheses: List[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """
+        Teste l'impact de variations ±20% sur chaque hypothèse/variable clé.
+        
+        Args:
+            base_result: Composant d'estimation de référence
+            hypotheses: Liste des hypothèses à tester (si fournie par LLM)
+            
+        Returns:
+            {
+                "base_value": float,
+                "tests": List[Dict],
+                "most_sensitive_variables": List[str],
+                "confidence_adjusted": str
+            }
+        """
+        if base_result.estimated_value is None:
+            return {
+                "base_value": None,
+                "tests": [],
+                "most_sensitive_variables": [],
+                "confidence_adjusted": "LOW",
+                "error": "No base value to test"
+            }
+        
+        base_value = base_result.estimated_value
+        
+        # Identifier les variables clés à tester
+        test_variables = []
+        
+        # 1. Depuis les hypothèses LLM si disponibles
+        if hypotheses:
+            for hyp in hypotheses:
+                fact_key = hyp.get("variable") or hyp.get("key")
+                if fact_key:
+                    test_variables.append({
+                        "key": fact_key,
+                        "name": hyp.get("name", fact_key),
+                        "base_value": hyp.get("central_value") or hyp.get("value"),
+                        "unit": hyp.get("unit", "")
+                    })
+        
+        # 2. Sinon, depuis data_used du composant
+        if not test_variables and base_result.data_used:
+            for fact in base_result.data_used:
+                test_variables.append({
+                    "key": fact.get("key"),
+                    "name": fact.get("key", "").replace("_", " ").title(),
+                    "base_value": fact.get("value"),
+                    "unit": fact.get("unit", "")
+                })
+        
+        tests_results = []
+        sensitivity_scores = {}
+        
+        for var in test_variables:
+            if not var["base_value"]:
+                continue
+            
+            # Test -20%
+            override_low = {var["key"]: 0.8}  # Multiplier 0.8
+            comps_low = self.get_all_estimations(overrides=override_low)
+            
+            # Re-identifier le composant équivalent à base_result
+            comp_low = next((c for c in comps_low if c.id == base_result.id), None)
+            value_low = comp_low.estimated_value if comp_low else None
+            
+            # Test +20%
+            override_high = {var["key"]: 1.2}  # Multiplier 1.2
+            comps_high = self.get_all_estimations(overrides=override_high)
+            comp_high = next((c for c in comps_high if c.id == base_result.id), None)
+            value_high = comp_high.estimated_value if comp_high else None
+            
+            if value_low and value_high:
+                delta_low_pct = ((value_low - base_value) / base_value) * 100
+                delta_high_pct = ((value_high - base_value) / base_value) * 100
+                
+                # Score de sensibilité = amplitude de variation moyenne
+                sensitivity_score = (abs(delta_low_pct) + abs(delta_high_pct)) / 2
+                sensitivity_scores[var["name"]] = sensitivity_score
+                
+                # Classification
+                if sensitivity_score > 30:
+                    sensitivity_class = "CRITICAL"
+                elif sensitivity_score > 15:
+                    sensitivity_class = "HIGH"
+                elif sensitivity_score > 5:
+                    sensitivity_class = "MEDIUM"
+                else:
+                    sensitivity_class = "LOW"
+                
+                tests_results.append({
+                    "hypothesis": var["name"],
+                    "base": var["base_value"],
+                    "unit": var["unit"],
+                    "low_scenario": {
+                        "value": var["base_value"] * 0.8,
+                        "result": value_low,
+                        "delta_pct": round(delta_low_pct, 1)
+                    },
+                    "high_scenario": {
+                        "value": var["base_value"] * 1.2,
+                        "result": value_high,
+                        "delta_pct": round(delta_high_pct, 1)
+                    },
+                    "sensitivity_score": sensitivity_class
+                })
+        
+        # Identifier les variables les plus sensibles
+        most_sensitive = sorted(
+            sensitivity_scores.items(), 
+            key=lambda x: x[1], 
+            reverse=True
+        )[:3]
+        most_sensitive_names = [name for name, _ in most_sensitive]
+        
+        # Ajuster confiance si haute sensibilité
+        max_sensitivity = most_sensitive[0][1] if most_sensitive else 0
+        
+        if max_sensitivity > 30:
+            confidence_adjusted = "LOW"
+        elif max_sensitivity > 15:
+            confidence_adjusted = "MEDIUM"
+        else:
+            confidence_adjusted = base_result.confidence.upper()
+        
+        return {
+            "base_value": base_value,
+            "tests": tests_results,
+            "most_sensitive_variables": most_sensitive_names,
+            "confidence_adjusted": confidence_adjusted,
+            "max_sensitivity_score": round(max_sensitivity, 1) if most_sensitive else 0
+        }
+

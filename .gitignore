@@ -3,3 +3,6 @@
 ingestion_logs/
 __pycache__/
 *.pyc
+kpmgvenv/
+.gradio/
+.DS_Store
